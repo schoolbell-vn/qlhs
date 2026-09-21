@@ -1672,27 +1672,21 @@ function computeHk1StudentRecords() {
   const recordMap = {};
 
   STUDENTS_DB.forEach(s => {
-    const key = `${s.classId}_${s.name.trim().toLowerCase()}`;
+    // SỬ DỤNG MÃ HỌC SINH LÀM KHÓA DUY NHẤT ĐỂ KHÔNG BỊ GHI ĐÈ TRÙNG TÊN
+    const key = s.id;
     recordMap[key] = {
-      stt: s.stt,
-      classId: s.classId,
-      id: s.id,
-      name: s.name,
-      dob: s.dob,
-      gender: s.gender,
-      excusedAbsences: 0,
-      unexcusedAbsences: 0,
-      disciplineViolations: 0,
-      trafficViolations: 0,
-      totalPenalties: 0,
-      totalBonuses: 0,
-      details: []
+      stt: s.stt, classId: s.classId, id: s.id, name: s.name, dob: s.dob, gender: s.gender,
+      excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+      totalPenalties: 0, totalBonuses: 0, details: []
     };
   });
 
   // 1. Lấy vi phạm nề nếp từ Cờ Đỏ và TNXK
   violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus).forEach(v => {
-    const key = `${v.classId}_${v.student.trim().toLowerCase()}`;
+    // Đối chiếu lại tên để lấy ra đúng Mã Học Sinh
+    const matched = STUDENTS_DB.find(s => s.classId === v.classId && s.name.trim().toLowerCase() === v.student.trim().toLowerCase());
+    const key = matched ? matched.id : `${v.classId}_${v.student.trim().toLowerCase()}`;
+    
     let rec = recordMap[key];
     if (!rec) {
       rec = {
@@ -1720,7 +1714,9 @@ function computeHk1StudentRecords() {
   Object.keys(sdbFullData).forEach(cid => {
     const s = sdbFullData[cid];
     (s.absences || []).forEach(a => {
-      const key = `${cid}_${a.student.trim().toLowerCase()}`;
+      const matched = STUDENTS_DB.find(st => st.classId === cid && st.name.trim().toLowerCase() === a.student.trim().toLowerCase());
+      const key = matched ? matched.id : `${cid}_${a.student.trim().toLowerCase()}`;
+      
       let rec = recordMap[key];
       if (!rec) {
         rec = {
@@ -1758,12 +1754,7 @@ function computeHk1StudentRecords() {
       bClass = 'badge-warning';
     }
 
-    return {
-      ...r,
-      finalScore: score.toFixed(1),
-      rank,
-      bClass
-    };
+    return { ...r, finalScore: score.toFixed(1), rank, bClass };
   });
 }
 
