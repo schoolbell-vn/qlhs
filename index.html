@@ -1278,48 +1278,57 @@ const RULES = [
 ];
 
 // 3. TẠO HỆ THỐNG 85 TÀI KHOẢN THEO 36 LỚP MỚI
+// 3. TẠO HỆ THỐNG 85 TÀI KHOẢN TỰ ĐỘNG CHO 36 CHI ĐOÀN
 function generateDefaultUsers() {
+  // Tạo sẵn danh sách 36 lớp cố định để không bị phụ thuộc mạng
+  const fixedClasses = [];
+  ['10', '11', '12'].forEach(grade => {
+    for (let i = 1; i <= 12; i++) {
+      fixedClasses.push(grade + 'A' + i);
+    }
+  });
+
   const users = [
-    { username: 'admin', pass: 'admin123', name: 'Bí thư Đoàn Trường', role: 'admin', scope: CLASSES.map(c => c.id), sdbClass: null }
+    { username: 'admin', pass: 'admin123', name: 'Bí thư Đoàn Trường', role: 'admin', scope: fixedClasses, sdbClass: null }
   ];
 
-  // 31 Tài khoản Sổ đầu bài
-  CLASSES.forEach(c => {
+  // 36 Tài khoản Sổ đầu bài
+  fixedClasses.forEach(c => {
     users.push({
-      username: `sdb_${c.id.toLowerCase()}`,
-      pass: `sdb@${c.id.toLowerCase()}`,
-      name: `Cán sự SĐB Chi đoàn ${c.id}`,
+      username: `sdb_${c.toLowerCase()}`,
+      pass: `sdb@${c.toLowerCase()}`,
+      name: `Cán sự SĐB Chi đoàn ${c}`,
       role: 'sdb',
-      scope: [c.id],
-      sdbClass: c.id
+      scope: [c],
+      sdbClass: c
     });
   });
 
-  // 31 Tài khoản Cờ đỏ
-  CLASSES.forEach(c => {
+  // 36 Tài khoản Cờ đỏ
+  fixedClasses.forEach(c => {
     users.push({
-      username: `codo_${c.id.toLowerCase()}`,
-      pass: `codo@${c.id.toLowerCase()}`,
-      name: `Cờ Đỏ Phụ Trách Chi Đoàn ${c.id}`,
+      username: `codo_${c.toLowerCase()}`,
+      pass: `codo@${c.toLowerCase()}`,
+      name: `Cờ Đỏ Phụ Trách Chi Đoàn ${c}`,
       role: 'codo',
-      scope: [c.id],
+      scope: [c],
       sdbClass: null
     });
   });
 
   // 12 Tài khoản Thanh niên xung kích (Chấm toàn trường)
-  const allClassIds = CLASSES.map(c => c.id);
   for (let i = 1; i <= 12; i++) {
     users.push({ 
       username: `tnxk_${i}`, 
       pass: `tnxk@${i}`, 
       name: `Cán bộ TNXK số ${i}`, 
       role: 'tnxk', 
-      scope: allClassIds, 
+      scope: fixedClasses, 
       sdbClass: null, 
       assignedGrade: 'Toàn trường' 
     });
   }
+
   return users;
 }
 
