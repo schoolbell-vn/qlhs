@@ -392,6 +392,7 @@
             <div class="form-group">
               <label>Chi đoàn đang phụ trách:</label>
               <input type="text" id="sdbClassDisplay" class="locked-input" style="font-weight:bold; font-size:1.05rem; color:var(--primary);" readonly>
+              <select id="adminSdbClassSelect" onchange="changeAdminSdbClass(this.value)" style="display:none; font-weight:bold; font-size:1.05rem; color:var(--primary); padding:0.55rem; border-radius:8px;"></select>
             </div>
             <div class="form-group">
               <label>Cán sự SĐB thực hiện:</label>
@@ -503,7 +504,7 @@
               Tổng điểm thi đua SĐB lớp đóng góp: <span id="sdbLiveTotalImpact">+11 điểm</span>
             </div>
           </div>
-          <button type="button" class="btn btn-success" onclick="saveFullSdbData()" style="padding:0.65rem 1.5rem; font-size:0.95rem;">
+          <button type="button" id="btnSaveSdbData" class="btn btn-success" onclick="saveFullSdbData()" style="padding:0.65rem 1.5rem; font-size:0.95rem;">
             💾 Cán Bộ SĐB Xác Nhận Lưu Toàn Bộ Dữ Liệu
           </button>
         </div>
@@ -1169,7 +1170,7 @@
 <script>
 // ==================== HÚT DANH SÁCH TỪ GOOGLE SHEETS ====================
 // DÁN ĐƯỜNG LINK WEB APP URL CỦA GOOGLE SHEETS VÀO ĐÂY
-const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbwQ1wc6ZSq6tvrzh2lgtO8aEXLg_9JrB0obvkeMbmSqQEZXAUm8WU7AjtEVNdZPQq6Alg/exec";
+const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbyxBDWqIiaufZ4F2FUpVXWPjsRQLhNdHAxahxjAPWe-2ULujHgCg3Zc_wKL_p4k-hj1xA/exec";
 
 // Khởi tạo mảng học sinh rỗng ban đầu
 let STUDENTS_DB = [];
@@ -1177,7 +1178,7 @@ let STUDENTS_DB = [];
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchStudentsFromDrive() {
   try {
-    const response = await fetch(GOOGLE_SHEETS_API_URL);
+    const response = await fetch(GOOGLE_SHEETS_API_URL, { redirect: "follow" });
     const data = await response.json();
     if (data && data.length > 0) {
       STUDENTS_DB = data;
@@ -2234,14 +2235,32 @@ function closeImgModal() {
 // ==================== PHẦN SỔ ĐẦU BÀI (SĐB) ====================
 function setupSdbForm() {
   let targetClass = loggedUser.sdbClass;
+  const adminSel = document.getElementById('adminSdbClassSelect');
+  const normalInput = document.getElementById('sdbClassDisplay');
+
   if (loggedUser.role === 'admin') {
-    targetClass = targetClass || '10A';
+    targetClass = targetClass || CLASSES[0].id; // Lấy lớp đầu tiên làm mặc định
     document.getElementById('adminSdbOverviewArea').style.display = 'block';
+    
+    // Hiển thị dropdown cho Admin
+    normalInput.style.display = 'none';
+    adminSel.style.display = 'block';
+    
+    // Đổ danh sách 36 lớp vào dropdown nếu chưa có
+    if (adminSel.options.length === 0) {
+      CLASSES.forEach(c => {
+        adminSel.innerHTML += `<option value="${c.id}">Chi đoàn ${c.id}</option>`;
+      });
+    }
+    adminSel.value = targetClass;
+    
     renderAdminSdbOverviewTable();
   } else {
     document.getElementById('adminSdbOverviewArea').style.display = 'none';
+    normalInput.style.display = 'block';
+    adminSel.style.display = 'none';
+    normalInput.value = `Chi đoàn ${targetClass}`;
   }
-
   document.getElementById('sdbClassAssignedBadge').textContent = `Lớp phụ trách: Chi đoàn ${targetClass}`;
   document.getElementById('sdbClassDisplay').value = `Chi đoàn ${targetClass}`;
   document.getElementById('sdbUserDisplay').value = loggedUser.name;
@@ -2268,7 +2287,7 @@ function setupSdbForm() {
 }
 
 function renderSdbAbsenceList() {
-  const targetClass = loggedUser.sdbClass || '10A';
+  const targetClass = loggedUser.role === 'admin' ? document.getElementById('adminSdbClassSelect').value : loggedUser.sdbClass;
   const data = sdbFullData[targetClass] || { absences: [] };
   const tbody = document.getElementById('sdbAbsenceListBody');
   tbody.innerHTML = '';
@@ -2295,7 +2314,7 @@ function renderSdbAbsenceList() {
 }
 
 function addSdbAbsenceItem() {
-  const targetClass = loggedUser.sdbClass || '10A';
+  const targetClass = loggedUser.role === 'admin' ? document.getElementById('adminSdbClassSelect').value : loggedUser.sdbClass;
   const date = document.getElementById('sdbAbsenceDate').value;
   const student = document.getElementById('sdbAbsenceStudentName').value.trim();
   const type = document.getElementById('sdbAbsenceType').value;
@@ -2326,7 +2345,7 @@ function addSdbAbsenceItem() {
 }
 
 function removeSdbAbsenceItem(idx) {
-  const targetClass = loggedUser.sdbClass || '10A';
+  const targetClass = loggedUser.role === 'admin' ? document.getElementById('adminSdbClassSelect').value : loggedUser.sdbClass;
   if (confirm('Xóa lượt nghỉ học này khỏi sổ theo dõi?')) {
     sdbFullData[targetClass].absences.splice(idx, 1);
     renderSdbAbsenceList();
@@ -2335,77 +2354,137 @@ function removeSdbAbsenceItem(idx) {
 }
 
 function recalcSdbFull() {
-  const targetClass = loggedUser.sdbClass || '10A';
+  try {
+      let targetClass = loggedUser.sdbClass;
+      if (loggedUser.role === 'admin') {
+          const adminSel = document.getElementById('adminSdbClassSelect');
+          if (adminSel) targetClass = adminSel.value;
+      }
+      if(!targetClass) return; // Tránh lỗi nếu chưa load xong lớp
 
-  const fair = parseInt(document.getElementById('sdbFairInput').value) || 0;
-  const med = parseInt(document.getElementById('sdbMedInput').value) || 0;
-  const weak = parseInt(document.getElementById('sdbWeakInput').value) || 0;
-  const poor = parseInt(document.getElementById('sdbPoorInput').value) || 0;
-  const total = parseInt(document.getElementById('sdbTotalInput').value) || 30;
-  const good = parseInt(document.getElementById('sdbGoodInput').value) || 0;
+      const fair = parseInt(document.getElementById('sdbFairInput').value) || 0;
+      const med = parseInt(document.getElementById('sdbMedInput').value) || 0;
+      const weak = parseInt(document.getElementById('sdbWeakInput').value) || 0;
+      const poor = parseInt(document.getElementById('sdbPoorInput').value) || 0;
+      const total = parseInt(document.getElementById('sdbTotalInput').value) || 30;
+      const good = parseInt(document.getElementById('sdbGoodInput').value) || 0;
 
-  const hourPenalty = (fair * 1) + (med * 3) + (weak * 5) + (poor * 7);
-  const hourBonus = (good === total && total > 0) ? 20 : 0;
+      const hourPenalty = (fair * 1) + (med * 3) + (weak * 5) + (poor * 7);
+      const hourBonus = (good === total && total > 0) ? 20 : 0;
 
-  const data = sdbFullData[targetClass] || { absences: [] };
-  let absencePenalty = 0;
-  (data.absences || []).forEach(a => absencePenalty += Math.abs(a.point));
+      const data = sdbFullData[targetClass] || { absences: [] };
+      let absencePenalty = 0;
+      (data.absences || []).forEach(a => absencePenalty += Math.abs(a.point));
 
-  const goodCount = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
-  const poorCount = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
-  const academicBalance = (goodCount * 1) - (poorCount * 2);
+      const goodCount = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
+      const poorCount = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
+      const academicBalance = (goodCount * 1) - (poorCount * 2);
 
-  document.getElementById('sdbLiveHourPenalty').textContent = hourPenalty > 0 ? `-${hourPenalty} đ` : '0 đ';
-  document.getElementById('sdbLiveHourBonus').textContent = hourBonus > 0 ? `+${hourBonus} đ` : '0 đ';
-  document.getElementById('sdbLiveAbsencePenalty').textContent = absencePenalty > 0 ? `-${absencePenalty} đ` : '0 đ';
-  document.getElementById('sdbLiveAcademicBalance').textContent = (academicBalance >= 0 ? '+' : '') + academicBalance + ' đ';
+      document.getElementById('sdbLiveHourPenalty').textContent = hourPenalty > 0 ? `-${hourPenalty} đ` : '0 đ';
+      document.getElementById('sdbLiveHourBonus').textContent = hourBonus > 0 ? `+${hourBonus} đ` : '0 đ';
+      document.getElementById('sdbLiveAbsencePenalty').textContent = absencePenalty > 0 ? `-${absencePenalty} đ` : '0 đ';
+      document.getElementById('sdbLiveAcademicBalance').textContent = (academicBalance >= 0 ? '+' : '') + academicBalance + ' đ';
 
-  const totalImpact = - hourPenalty + hourBonus - absencePenalty + academicBalance;
-  document.getElementById('sdbLiveTotalImpact').textContent = (totalImpact >= 0 ? '+' : '') + totalImpact.toFixed(1) + ' điểm';
-  document.getElementById('sdbLiveTotalImpact').style.color = totalImpact >= 0 ? 'var(--success)' : 'var(--danger)';
+      const totalImpact = - hourPenalty + hourBonus - absencePenalty + academicBalance;
+      const impactEl = document.getElementById('sdbLiveTotalImpact');
+      if(impactEl) {
+          impactEl.textContent = (totalImpact >= 0 ? '+' : '') + totalImpact.toFixed(1) + ' điểm';
+          impactEl.style.color = totalImpact >= 0 ? 'var(--success)' : 'var(--danger)';
+      }
+  } catch(e) { 
+      console.error("Lỗi tính toán: ", e); 
+  }
 }
 
 function saveFullSdbData() {
-  let targetClass = loggedUser.sdbClass || '10A';
+  try {
+      // Tự động nhận diện lớp đang chọn (cho Admin hoặc Cán bộ lớp)
+      let targetClass = loggedUser.sdbClass;
+      if (loggedUser.role === 'admin') {
+          const adminSel = document.getElementById('adminSdbClassSelect');
+          if (adminSel) targetClass = adminSel.value;
+      }
 
-  if (loggedUser.role === 'sdb' && targetClass !== loggedUser.sdbClass) {
-    alert('⛔ LỖI PHÂN QUYỀN: Bạn không được phép cập nhật Sổ đầu bài của lớp khác!');
-    return;
+      if (!targetClass) {
+          alert('Lỗi: Chưa xác định được lớp để lưu!');
+          return;
+      }
+
+      if (loggedUser.role === 'sdb' && targetClass !== loggedUser.sdbClass) {
+        alert('⛔ LỖI PHÂN QUYỀN: Bạn không được phép cập nhật Sổ đầu bài của lớp khác!');
+        return;
+      }
+
+      // Đảm bảo dữ liệu mảng lớp tồn tại để tránh lỗi ngầm (crash)
+      if (!sdbFullData[targetClass]) {
+          sdbFullData[targetClass] = { 
+              total: 30, good: 0, fair: 0, medium: 0, weak: 0, poor: 0, 
+              absences: [], goodScores: 0, fairScores: 0, medScores: 0, poorScores: 0 
+          };
+      }
+
+      const total = parseInt(document.getElementById('sdbTotalInput').value) || 0;
+      const good = parseInt(document.getElementById('sdbGoodInput').value) || 0;
+      const fair = parseInt(document.getElementById('sdbFairInput').value) || 0;
+      const medium = parseInt(document.getElementById('sdbMedInput').value) || 0;
+      const weak = parseInt(document.getElementById('sdbWeakInput').value) || 0;
+      const poor = parseInt(document.getElementById('sdbPoorInput').value) || 0;
+
+      const goodScores = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
+      const fairScores = parseInt(document.getElementById('sdbCountFairScores').value) || 0;
+      const medScores = parseInt(document.getElementById('sdbCountMedScores').value) || 0;
+      const poorScores = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
+
+      sdbFullData[targetClass].total = total;
+      sdbFullData[targetClass].good = good;
+      sdbFullData[targetClass].fair = fair;
+      sdbFullData[targetClass].medium = medium;
+      sdbFullData[targetClass].weak = weak;
+      sdbFullData[targetClass].poor = poor;
+      sdbFullData[targetClass].goodScores = goodScores;
+      sdbFullData[targetClass].fairScores = fairScores;
+      sdbFullData[targetClass].medScores = medScores;
+      sdbFullData[targetClass].poorScores = poorScores;
+      sdbFullData[targetClass].updatedBy = loggedUser.name;
+      sdbFullData[targetClass].updatedAt = new Date().toLocaleDateString('vi-VN');
+
+      localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+      
+      // Bắn lệnh cập nhật lên máy chủ
+      publishUpdate('UPDATE_SDB', { classId: targetClass, sdbData: sdbFullData[targetClass] });
+      
+      // Hiệu ứng phản hồi nút bấm
+      const btn = document.getElementById('btnSaveSdbData');
+      if(btn) {
+          const originalText = btn.innerHTML;
+          btn.innerHTML = "⏳ Đang đồng bộ dữ liệu...";
+          btn.style.backgroundColor = "var(--warning)";
+          btn.disabled = true;
+
+          setTimeout(() => {
+              btn.innerHTML = `✅ Đã lưu thành công Chi đoàn ${targetClass}!`;
+              btn.style.backgroundColor = "var(--success)";
+              
+              setTimeout(() => {
+                  btn.innerHTML = originalText;
+                  btn.disabled = false;
+                  btn.style.backgroundColor = ""; // Trả về màu gốc
+              }, 3000);
+          }, 600);
+      } else {
+          alert(`✅ Đã lưu thành công Sổ Đầu Bài Chi đoàn ${targetClass}!`);
+      }
+
+      // Cập nhật lại các bảng dữ liệu
+      renderLeaderboard();
+      renderStudentSearchTable();
+      if (loggedUser.role === 'admin') renderAdminSdbOverviewTable();
+
+  } catch(err) {
+      console.error("Lỗi khi lưu SĐB: ", err);
+      alert("⚠️ Đã xảy ra lỗi hệ thống khi lưu: " + err.message);
   }
-
-  const total = parseInt(document.getElementById('sdbTotalInput').value);
-  const good = parseInt(document.getElementById('sdbGoodInput').value);
-  const fair = parseInt(document.getElementById('sdbFairInput').value);
-  const medium = parseInt(document.getElementById('sdbMedInput').value);
-  const weak = parseInt(document.getElementById('sdbWeakInput').value);
-  const poor = parseInt(document.getElementById('sdbPoorInput').value);
-
-  const goodScores = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
-  const fairScores = parseInt(document.getElementById('sdbCountFairScores').value) || 0;
-  const medScores = parseInt(document.getElementById('sdbCountMedScores').value) || 0;
-  const poorScores = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
-
-  sdbFullData[targetClass].total = total;
-  sdbFullData[targetClass].good = good;
-  sdbFullData[targetClass].fair = fair;
-  sdbFullData[targetClass].medium = medium;
-  sdbFullData[targetClass].weak = weak;
-  sdbFullData[targetClass].poor = poor;
-  sdbFullData[targetClass].goodScores = goodScores;
-  sdbFullData[targetClass].fairScores = fairScores;
-  sdbFullData[targetClass].medScores = medScores;
-  sdbFullData[targetClass].poorScores = poorScores;
-  sdbFullData[targetClass].updatedBy = loggedUser.name;
-  sdbFullData[targetClass].updatedAt = new Date().toLocaleDateString('vi-VN');
-
-  localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
-  alert(`✅ Đã lưu toàn diện Sổ đầu bài (Tiết học, Nghỉ học, Điểm KT) cho Chi đoàn ${targetClass}!`);
-
-  renderLeaderboard();
-  renderStudentSearchTable();
-  if (loggedUser.role === 'admin') renderAdminSdbOverviewTable();
 }
-
 function renderAdminSdbOverviewTable() {
   const tbody = document.getElementById('adminSdbOverviewBody');
   tbody.innerHTML = '';
@@ -3368,6 +3447,10 @@ function resetSystemData() {
   } else if (confirmCode !== null) {
     alert('❌ Mã xác nhận không đúng. Đã hủy thao tác làm mới dữ liệu.');
   }
+}
+function changeAdminSdbClass(newClassId) {
+  loggedUser.sdbClass = newClassId;
+  setupSdbForm();
 }
 
 </script>
