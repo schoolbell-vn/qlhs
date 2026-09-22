@@ -1170,10 +1170,11 @@
 <script>
 // ==================== HÚT DANH SÁCH TỪ GOOGLE SHEETS ====================
 // DÁN ĐƯỜNG LINK WEB APP URL CỦA GOOGLE SHEETS VÀO ĐÂY
-const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbzEmmgwqZN7V_xHPTQNv_eSCCrKndzgiVPQqHs_g9EpAw68MFS2OJ_gqvPC5o_pLr2JFg/exec";
+const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbxKBXVyNjMKae7j38CY3BweiDRod62smcf7511Zb_6ab40V7AUybxiavVBhAnISudjHVg/exec";
 
 // Khởi tạo mảng học sinh rỗng ban đầu
 let STUDENTS_DB = [];
+let CLASSES = [];
 
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchStudentsFromDrive() {
@@ -1241,7 +1242,6 @@ function getDynamicClasses() {
   });
   return classes;
 }
-let CLASSES = getDynamicClasses();
 
 const K10_CLASSES = CLASSES.filter(c => c.grade === '10').map(c => c.id);
 const K11_CLASSES = CLASSES.filter(c => c.grade === '11').map(c => c.id);
@@ -2698,9 +2698,53 @@ function calcCodoPoints() {
 }
 
 // THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT ĐÃ TẠO Ở BƯỚC TRƯỚC VÀO ĐÂY
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxflvj0yGxs6fanNBUeGdR9MpIFUAXTHDvtTzWCxHHqeHHGEdndZkd5Zu2hq_cgpdRryw/exec";
+const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
-function handleCodoViolationSubmit(e) {
+// =========================================================================
+// 2. HÀM DÙNG CHUNG ĐỂ UPLOAD ẢNH LÊN GOOGLE DRIVE (TỐI ƯU GỌN NHẸ)
+// =========================================================================
+async function uploadImageToDrive(file, prefix, classId) {
+  return new Promise((resolve, reject) => {
+    // Giới hạn ảnh 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      return reject(new Error('Kích thước ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.'));
+    }
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const base64Data = e.target.result.split(',')[1]; 
+        const payload = {
+          fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
+          mimeType: file.type || "image/jpeg",
+          base64: base64Data
+        };
+
+        const response = await fetch(MASTER_APP_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if(result.status === "success") {
+          resolve(result.url); // Trả về link Drive
+        } else {
+          reject(new Error(result.message || 'Drive từ chối nhận file.'));
+        }
+      } catch (err) {
+        reject(new Error('Lỗi mạng khi tải ảnh lên Google Drive.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Không thể đọc file ảnh.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// =========================================================================
+// 3. XỬ LÝ NỘP BIÊN BẢN CỜ ĐỎ (ĐỒNG NHẤT)
+// =========================================================================
+async function handleCodoViolationSubmit(e) {
   e.preventDefault();
   const classId = document.getElementById('codoClassSelect').value;
 
@@ -2711,97 +2755,148 @@ function handleCodoViolationSubmit(e) {
 
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const originalBtnText = submitBtn.innerHTML;
-
-  const date = document.getElementById('codoDateInput').value;
-  const student = document.getElementById('codoStudentInput').value.trim();
+  
   const code = document.getElementById('codoRuleSelect').value;
-  const mult = parseInt(document.getElementById('codoMultSelect').value);
-  const points = parseFloat(document.getElementById('codoFinalPointInput').value);
-  const evidence = document.getElementById('codoEvidenceInput').value.trim();
-  const linkEvidence = document.getElementById('codoLinkEvidence').value.trim();
-  const fileInput = document.getElementById('codoImageEvidence');
   const rule = RULES.find(r => r.code === code);
+  if (!rule) { alert('⚠️ Vui lòng chọn nội dung vi phạm.'); return; }
 
-  const saveRecord = (finalImageUrl) => {
+  const fileInput = document.getElementById('codoImageEvidence');
+  let finalImageUrl = '';
+
+  // Khóa nút bấm để tránh double-click
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = "⏳ Đang xử lý biên bản...";
+
+  try {
+    // 1. Upload ảnh nếu có
+    if (fileInput.files && fileInput.files[0]) {
+      submitBtn.innerHTML = "⏳ Đang tải ảnh lên Google Drive...";
+      finalImageUrl = await uploadImageToDrive(fileInput.files[0], 'CODO', classId);
+    }
+
+    // 2. Gom dữ liệu biên bản
     const newV = {
       id: Date.now(),
-      date,
-      classId,
-      student,
-      code,
+      date: document.getElementById('codoDateInput').value,
+      classId: classId,
+      student: document.getElementById('codoStudentInput').value.trim(),
+      code: code,
       name: rule.name,
-      points,
-      mult,
+      points: parseFloat(document.getElementById('codoFinalPointInput').value),
+      mult: parseInt(document.getElementById('codoMultSelect').value),
       recorder: loggedUser.name,
-      evidence,
-      linkEvidence,
-      imageEvidence: finalImageUrl || '', // Lưu link Drive
+      evidence: document.getElementById('codoEvidenceInput').value.trim(),
+      linkEvidence: document.getElementById('codoLinkEvidence').value.trim(),
+      imageEvidence: finalImageUrl,
       status: loggedUser.role === 'admin' ? 'Đã duyệt' : 'Chờ duyệt'
     };
 
-    // 1. Lưu vào máy mình
+    // 3. Ưu tiên 1: Lưu cục bộ ngay lập tức để an toàn dữ liệu
     violations.push(newV);
     localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
-    
-    // 2. Bắn thông tin này lên HiveMQ để máy Admin và máy khác nhận được
-    publishUpdate('NEW_VIOLATION', newV);
 
-    alert(`✅ Đã lập biên bản nề nếp cho Chi đoàn ${classId}!`);
+    // 4. Ưu tiên 2: Bắn qua MQTT (Nếu rớt mạng MQTT thì bỏ qua, hệ thống vẫn lưu cục bộ)
+    if (mqttClient && mqttClient.connected) {
+      publishUpdate('NEW_VIOLATION', newV);
+    }
+
+    // Reset Form
+    alert(`✅ Đã lưu biên bản Cờ đỏ cho Chi đoàn ${classId}!`);
     document.getElementById('codoStudentInput').value = '';
     document.getElementById('codoEvidenceInput').value = '';
     document.getElementById('codoImageEvidence').value = '';
     document.getElementById('codoImgPreview').innerHTML = '';
-    submitBtn.innerHTML = originalBtnText;
-    submitBtn.disabled = false;
-
+    
     renderCodoLogsTable();
     renderReviewTable();
     renderLeaderboard();
     updatePendingBadge();
-  };
 
-  // NẾU CÓ CHỌN ẢNH -> GỬI LÊN DRIVE TRƯỚC
-  if (fileInput.files && fileInput.files[0]) {
-    const file = fileInput.files[0];
-    submitBtn.innerHTML = "⏳ Đang tải ảnh lên Google Drive...";
-    submitBtn.disabled = true;
-
-    const reader = new FileReader();
-    reader.onload = function(re) {
-      const base64Data = re.target.result.split(',')[1]; 
-      
-      // Gửi API lên Google Apps Script
-      fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: `${classId}_${Date.now()}.jpg`,
-          mimeType: file.type,
-          base64: base64Data
-        })
-      })
-      .then(response => response.json())
-      .then(result => {
-        if(result.status === "success") {
-            saveRecord(result.url); // Trả về link Drive thành công
-        } else {
-            alert("Lỗi lưu ảnh: " + result.message);
-            submitBtn.innerHTML = originalBtnText;
-            submitBtn.disabled = false;
-        }
-      })
-      .catch(err => {
-        alert("Lỗi mạng khi tải ảnh lên Google Drive!");
-        submitBtn.innerHTML = originalBtnText;
-        submitBtn.disabled = false;
-      });
-    };
-    reader.readAsDataURL(file);
-  } else {
-    // KHÔNG CÓ ẢNH -> LƯU LUÔN
-    saveRecord('');
+  } catch (error) {
+    alert("❌ LỖI TẢI ẢNH: " + error.message);
+  } finally {
+    submitBtn.innerHTML = originalBtnText;
+    submitBtn.disabled = false;
   }
 }
 
+// =========================================================================
+// 4. XỬ LÝ NỘP BIÊN BẢN TNXK (ĐỒNG NHẤT NHƯ CỜ ĐỎ)
+// =========================================================================
+async function handleTnxkViolationSubmit(e) {
+  e.preventDefault();
+  const classId = document.getElementById('tnxkClassSelect').value;
+
+  if (!loggedUser.scope.includes(classId) && loggedUser.role !== 'admin') {
+    alert('⛔ LỖI PHÂN QUYỀN: Bạn chỉ được nhập dữ liệu cho các lớp thuộc khối mình phụ trách!');
+    return;
+  }
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn.innerHTML;
+
+  const code = document.getElementById('tnxkRuleSelect').value;
+  const rule = RULES.find(r => r.code === code);
+  if (!rule) { alert('⚠️ Vui lòng chọn nội dung vi phạm.'); return; }
+
+  const fileInput = document.getElementById('tnxkImageEvidence');
+  let finalImageUrl = '';
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = "⏳ Đang xử lý biên bản...";
+
+  try {
+    // 1. Upload ảnh nếu có
+    if (fileInput.files && fileInput.files[0]) {
+      submitBtn.innerHTML = "⏳ Đang tải ảnh lên Google Drive...";
+      finalImageUrl = await uploadImageToDrive(fileInput.files[0], 'TNXK', classId);
+    }
+
+    // 2. Gom dữ liệu biên bản
+    const newV = {
+      id: Date.now(),
+      date: document.getElementById('tnxkDateInput').value,
+      classId: classId,
+      student: document.getElementById('tnxkStudentInput').value.trim(),
+      code: code,
+      name: rule.name,
+      points: parseFloat(document.getElementById('tnxkFinalPointInput').value),
+      mult: parseInt(document.getElementById('tnxkMultSelect').value),
+      recorder: loggedUser.name,
+      evidence: document.getElementById('tnxkEvidenceInput').value.trim(),
+      linkEvidence: document.getElementById('tnxkLinkEvidence').value.trim(),
+      imageEvidence: finalImageUrl,
+      status: loggedUser.role === 'admin' ? 'Đã duyệt' : 'Chờ duyệt'
+    };
+
+    // 3. Ưu tiên 1: Lưu cục bộ (LocalStorage)
+    violations.push(newV);
+    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+
+    // 4. Ưu tiên 2: MQTT (Giảm phụ thuộc, chỉ coi là tool đẩy thông báo)
+    if (mqttClient && mqttClient.connected) {
+      publishUpdate('NEW_VIOLATION', newV);
+    }
+
+    // Reset Form
+    alert(`⚡ Đã lưu biên bản TNXK cho Chi đoàn ${classId}!`);
+    document.getElementById('tnxkStudentInput').value = '';
+    document.getElementById('tnxkEvidenceInput').value = '';
+    document.getElementById('tnxkImageEvidence').value = '';
+    document.getElementById('tnxkImgPreview').innerHTML = '';
+    
+    renderTnxkLogsTable();
+    renderReviewTable();
+    renderLeaderboard();
+    updatePendingBadge();
+
+  } catch (error) {
+    alert("❌ LỖI TẢI ẢNH: " + error.message);
+  } finally {
+    submitBtn.innerHTML = originalBtnText;
+    submitBtn.disabled = false;
+  }
+}
 function renderCodoLogsTable() {
   const tbody = document.getElementById('codoLogsBody');
   tbody.innerHTML = '';
@@ -2900,7 +2995,6 @@ function renderCodoLogsTable() {
   });
 }
 
-// ==================== TỔ TRƯỞNG TNXK THAO TÁC ====================
 function setupTnxkForm() {
   document.getElementById('tnxkRecorderInput').value = loggedUser.name;
   const classSel = document.getElementById('tnxkClassSelect');
@@ -2938,222 +3032,6 @@ function calcTnxkPoints() {
   if (r) document.getElementById('tnxkFinalPointInput').value = r.point * mult;
 }
 
-async function handleTnxkViolationSubmit(e) {
-  e.preventDefault();
-
-  const classId = document.getElementById('tnxkClassSelect').value;
-
-  if (!loggedUser.scope.includes(classId) && loggedUser.role !== 'admin') {
-    alert('⛔ LỖI PHÂN QUYỀN: Bạn chỉ được nhập dữ liệu cho các lớp thuộc khối mình phụ trách!');
-    return;
-  }
-
-  const date = document.getElementById('tnxkDateInput').value;
-  const student = document.getElementById('tnxkStudentInput').value.trim();
-  const code = document.getElementById('tnxkRuleSelect').value;
-  const mult = parseInt(document.getElementById('tnxkMultSelect').value);
-  const points = parseFloat(
-    document.getElementById('tnxkFinalPointInput').value
-  );
-  const evidence = document.getElementById('tnxkEvidenceInput').value.trim();
-  const linkEvidence = document.getElementById('tnxkLinkEvidence').value.trim();
-
-  const fileInput = document.getElementById('tnxkImageEvidence');
-
-  const rule = RULES.find(r => r.code === code);
-
-  if (!rule) {
-    alert('⚠️ Vui lòng chọn nội dung vi phạm.');
-    return;
-  }
-
-  // =====================================================
-  // HÀM LƯU BIÊN BẢN SAU KHI ĐÃ CÓ URL ẢNH
-  // =====================================================
-  const saveTnxkRecord = (imageUrl) => {
-
-    const newV = {
-      id: Date.now(),
-      date,
-      classId,
-      student,
-      code,
-      name: rule.name,
-      points,
-      mult,
-      recorder: loggedUser.name,
-      evidence,
-      linkEvidence,
-
-      // CHỈ LƯU URL ẢNH
-      // KHÔNG LƯU BASE64
-      imageEvidence: imageUrl || '',
-
-      status: loggedUser.role === 'admin'
-        ? 'Đã duyệt'
-        : 'Chờ duyệt'
-    };
-
-    violations.push(newV);
-
-    localStorage.setItem(
-      'yka_violations_v1',
-      JSON.stringify(violations)
-    );
-
-    alert(
-      `⚡ Tổ Trưởng TNXK đã lưu biên bản cho Chi đoàn ${classId}!\n` +
-      `Trạng thái: ${newV.status}`
-    );
-
-    document.getElementById('tnxkStudentInput').value = '';
-    document.getElementById('tnxkEvidenceInput').value = '';
-    document.getElementById('tnxkLinkEvidence').value = '';
-    document.getElementById('tnxkImageEvidence').value = '';
-    document.getElementById('tnxkImgPreview').innerHTML = '';
-
-    renderTnxkLogsTable();
-    renderReviewTable();
-    renderLeaderboard();
-    updatePendingBadge();
-  };
-
-
-  // =====================================================
-  // KHÔNG CÓ ẢNH
-  // =====================================================
-  if (!fileInput.files || !fileInput.files[0]) {
-    saveTnxkRecord('');
-    return;
-  }
-
-
-  // =====================================================
-  // CÓ ẢNH → UPLOAD GOOGLE DRIVE
-  // =====================================================
-
-  const file = fileInput.files[0];
-
-  // Giới hạn ảnh để tránh gửi file quá lớn
-  const MAX_SIZE = 5 * 1024 * 1024;
-
-  if (file.size > MAX_SIZE) {
-    alert('⚠️ Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5 MB.');
-    return;
-  }
-
-  const GOOGLE_SCRIPT_URL =
-    'https://script.google.com/macros/s/AKfycbxflvj0yGxs6fanNBUeGdR9MpIFUAXTHDvtTzWCxHHqeHHGEdndZkd5Zu2hq_cgpdRryw/exec';
-
-
-  // Hiển thị trạng thái
-  const submitBtn = e.submitter;
-
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.dataset.oldText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '⏳ Đang tải ảnh lên Drive...';
-  }
-
-
-  try {
-
-    // Đọc ảnh thành Base64 để gửi lên Apps Script
-    const base64 = await new Promise((resolve, reject) => {
-
-      const reader = new FileReader();
-
-      reader.onload = () => resolve(reader.result);
-
-      reader.onerror = () => {
-        reject(new Error('Không đọc được file ảnh.'));
-      };
-
-      reader.readAsDataURL(file);
-    });
-
-
-    console.log('[TNXK] Đang upload ảnh lên Google Drive...');
-
-
-    // Gửi ảnh lên Google Apps Script
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-
-      body: JSON.stringify({
-        fileName:
-          'TNXK_' +
-          classId +
-          '_' +
-          Date.now() +
-          '_' +
-          file.name,
-
-        mimeType: file.type || 'image/jpeg',
-
-        base64: base64
-      })
-    });
-
-
-    if (!response.ok) {
-      throw new Error(
-        'HTTP ' + response.status
-      );
-    }
-
-
-    const result = await response.json();
-
-
-    console.log('[TNXK] Kết quả upload:', result);
-
-
-    if (result.status !== 'success' || !result.url) {
-      throw new Error(
-        result.message || 'Google Drive không trả về URL ảnh.'
-      );
-    }
-
-
-    console.log(
-      '[TNXK] Upload thành công:',
-      result.url
-    );
-
-
-    // LƯU BIÊN BẢN VỚI URL DRIVE
-    saveTnxkRecord(result.url);
-
-
-  } catch (error) {
-
-    console.error(
-      '[TNXK] Upload ảnh thất bại:',
-      error
-    );
-
-    alert(
-      '❌ Không thể tải ảnh lên Google Drive.\n\n' +
-      error.message +
-      '\n\nBiên bản chưa được lưu.'
-    );
-
-  } finally {
-
-    if (submitBtn) {
-      submitBtn.disabled = false;
-
-      if (submitBtn.dataset.oldText) {
-        submitBtn.innerHTML = submitBtn.dataset.oldText;
-      }
-    }
-  }
-}
 function renderTnxkLogsTable() {
   const tbody = document.getElementById('tnxkLogsBody');
   tbody.innerHTML = '';
