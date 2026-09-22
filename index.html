@@ -1168,53 +1168,62 @@
   </div>
 </div>
 <script>
-// ==================== HÚT DANH SÁCH TỪ GOOGLE SHEETS ====================
-// DÁN ĐƯỜNG LINK WEB APP URL CỦA GOOGLE SHEETS VÀO ĐÂY
-const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbxKBXVyNjMKae7j38CY3BweiDRod62smcf7511Zb_6ab40V7AUybxiavVBhAnISudjHVg/exec";
+// THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT ĐÃ TẠO Ở BƯỚC TRƯỚC VÀO ĐÂY
+const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
-// Khởi tạo mảng học sinh rỗng ban đầu
-let STUDENTS_DB = [];
-let CLASSES = [];
+let STUDENTS_DB = JSON.parse(localStorage.getItem('yka_students_db_v1')) || [];
+let CLASSES = getDynamicClasses();
 
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
-async function fetchStudentsFromDrive() {
-  // 1. Nạp ngay từ bộ nhớ đệm (nếu có) để web hiện ngay không cần chờ
+async function fetchDatabaseFromCloud() {
   try {
-    const localData = localStorage.getItem('yka_students_db_v1');
-    if (localData) {
-      STUDENTS_DB = JSON.parse(localData);
-      CLASSES = getDynamicClasses();
-      if (loggedUser) setupUserSessionUI();
-      else renderLeaderboard();
-      
-      // Kích hoạt ngay danh sách học sinh cho lớp đang hiển thị
-      refreshStudentDatalists();
-    }
-  } catch (e) { console.error("Lỗi đọc cache:", e); }
-
-  // 2. Gọi Google Sheets ngầm để cập nhật dữ liệu mới nhất
-  try {
-    const response = await fetch(GOOGLE_SHEETS_API_URL, { redirect: "follow" });
-    const data = await response.json();
+    const response = await fetch(MASTER_APP_SCRIPT_URL, { redirect: "follow" });
+    const db = await response.json();
     
-    if (data && data.length > 0) {
-      STUDENTS_DB = data;
+    if (db.status === "error") {
+      alert("❌ HỆ THỐNG MÁY CHỦ BÁO LỖI:\n\n" + db.message);
+      return;
+    }
+    
+    // Nạp Danh sách Học sinh
+    if (db.students && db.students.length > 0) {
+      STUDENTS_DB = db.students;
       localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
       CLASSES = getDynamicClasses();
-      
-      if (loggedUser) setupUserSessionUI(); 
-      else renderLeaderboard();
-      
-      // ĐỒNG BỘ: Nạp ngay học sinh vào ô gợi ý ngay khi Google Sheet tải xong
-      refreshStudentDatalists();
-      
-      if (document.getElementById('manageStudentClassFilter')) renderStudentManagementTable();
-      if (document.getElementById('hk1SummaryTableBody')) renderHk1SummaryTable();
     }
+    
+    // Nạp Biên bản Cờ đỏ / TNXK / BCH
+    if (db.violations) {
+      violations = db.violations;
+      localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    }
+    
+    // Nạp Điểm Sổ Đầu Bài
+    if (db.sdb) {
+      sdbFullData = db.sdb;
+      localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+    }
+    
+    // Nạp Danh sách 85 Tài khoản
+    if (db.users && db.users.length > 0) {
+      systemUsers = db.users;
+      localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+    }
+
+    // Cập nhật lại giao diện ngay khi có dữ liệu từ Cloud về
+    if (loggedUser) setupUserSessionUI(); 
+    else renderLeaderboard();
+    
+    refreshStudentDatalists();
+    
   } catch (error) {
-    console.warn("Không kết nối được Google Drive, tiếp tục dùng dữ liệu cache.");
+    console.warn("Lỗi kết nối:", error);
   }
 }
+
+// Gọi hàm lấy dữ liệu
+fetchDatabaseFromCloud();
+
 function refreshStudentDatalists() {
   const codoSel = document.getElementById('codoClassSelect');
   if (codoSel && codoSel.value) {
@@ -1227,7 +1236,7 @@ function refreshStudentDatalists() {
 }
 
 // Gọi hàm tải danh sách ngay khi mở trang web
-fetchStudentsFromDrive();
+fetchDatabaseFromCloud();
 // ======================================================================
 function updateStudentDatalist(selectedClassId) {
   const dl = document.getElementById('studentDatalist');
@@ -1376,7 +1385,7 @@ function generateDefaultUsers() {
   }
 })();
 
-let systemUsers = generateDefaultUsers(); localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+let systemUsers = JSON.parse(localStorage.getItem('yka_system_users_v1')) || generateDefaultUsers();
 let loggedUser = null;
 
 // 4. DỮ LIỆU SỔ ĐẦU BÀI 36 chi đoàn
@@ -1484,16 +1493,16 @@ function connectMqtt() {
 
         if (payload.action === 'NEW_VIOLATION') {
           violations.push(payload.data);
-          localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+          updateViolationsLocalAndCloud();
         } 
         else if (payload.action === 'UPDATE_VIOLATION_STATUS') {
           const v = violations.find(x => x.id === payload.data.id);
           if (v) v.status = payload.data.status;
-          localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+          updateViolationsLocalAndCloud();
         }
         else if (payload.action === 'UPDATE_SDB') {
           sdbFullData[payload.data.classId] = payload.data.sdbData;
-          localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+          updateSdbLocalAndCloud();
         }
 
         renderLeaderboard();
@@ -1949,7 +1958,7 @@ function handleBchBonusSubmit(e) {
   };
 
   violations.push(newBonusRecord);
-  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  updateViolationsLocalAndCloud();
 
   alert(`🎖️ BCH Đoàn trường đã phê duyệt và cộng thưởng +${points} điểm cho Chi đoàn ${classId}!\nNội dung: ${newBonusRecord.name}\nCăn cứ: ${evidence}`);
 
@@ -2466,7 +2475,7 @@ function saveFullSdbData() {
       sdbFullData[targetClass].updatedBy = loggedUser.name;
       sdbFullData[targetClass].updatedAt = new Date().toLocaleDateString('vi-VN');
 
-      localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+      updateSdbLocalAndCloud();
       
       // Bắn lệnh cập nhật lên máy chủ
       publishUpdate('UPDATE_SDB', { classId: targetClass, sdbData: sdbFullData[targetClass] });
@@ -2716,9 +2725,33 @@ function calcCodoPoints() {
   if (r) document.getElementById('codoFinalPointInput').value = r.point * mult;
 }
 
-// THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT ĐÃ TẠO Ở BƯỚC TRƯỚC VÀO ĐÂY
-const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
+// HỆ THỐNG ĐỒNG BỘ CƠ SỞ DỮ LIỆU LÊN CLOUD (GOOGLE DRIVE)
+// =========================================================================
+async function syncDataToCloud(fileName, content) {
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "save_data", fileName: fileName, content: content })
+    });
+  } catch(e) { console.error("Lỗi lưu lên cloud:", e); }
+}
+
+// 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
+// 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
+function updateViolationsLocalAndCloud() {
+  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  syncDataToCloud("db_violations.json", violations);
+}
+function updateSdbLocalAndCloud() {
+  localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+  syncDataToCloud("db_sdb.json", sdbFullData);
+}
+function updateUsersLocalAndCloud() {
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  syncDataToCloud("db_users.json", systemUsers);
+}
 // =========================================================================
 // 2. HÀM DÙNG CHUNG ĐỂ UPLOAD ẢNH LÊN GOOGLE DRIVE (TỐI ƯU GỌN NHẸ)
 // =========================================================================
@@ -2760,13 +2793,14 @@ async function uploadImageToDrive(file, prefix, classId) {
     const base64Data = await compressImage(file);
 
     const payload = {
+      action: "upload_image", // THÊM DÒNG NÀY ĐỂ BÁO CHO SERVER BIẾT LÀ ĐANG TẢI ẢNH
       fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
       mimeType: "image/jpeg",
       base64: base64Data
     };
 
     // 2. Gửi dữ liệu bằng text/plain để tránh bị chặn CORS
-    const response = await fetch(GOOGLE_SHEETS_API_URL, {
+    const response = await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
@@ -2837,7 +2871,7 @@ async function handleCodoViolationSubmit(e) {
 
     // 3. Ưu tiên 1: Lưu cục bộ ngay lập tức để an toàn dữ liệu
     violations.push(newV);
-    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    updateViolationsLocalAndCloud();
 
     // 4. Ưu tiên 2: Bắn qua MQTT (Nếu rớt mạng MQTT thì bỏ qua, hệ thống vẫn lưu cục bộ)
     if (mqttClient && mqttClient.connected) {
@@ -2915,7 +2949,7 @@ async function handleTnxkViolationSubmit(e) {
 
     // 3. Ưu tiên 1: Lưu cục bộ (LocalStorage)
     violations.push(newV);
-    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    updateViolationsLocalAndCloud();
 
     // 4. Ưu tiên 2: MQTT (Giảm phụ thuộc, chỉ coi là tool đẩy thông báo)
     if (mqttClient && mqttClient.connected) {
@@ -3219,7 +3253,7 @@ function approveViolation(id) {
   const it = violations.find(v => v.id === id);
   if (it) {
     it.status = 'Đã duyệt';
-    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    updateViolationsLocalAndCloud();
     renderReviewTable();
     renderLeaderboard();
     if (loggedUser.role === 'codo') renderCodoLogsTable();
@@ -3235,7 +3269,7 @@ function disputeViolation(id) {
     if (reason) {
       it.status = 'Khiếu nại';
       it.evidence += ` [Khiếu nại: ${reason}]`;
-      localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+      updateViolationsLocalAndCloud();
       renderReviewTable();
       renderLeaderboard();
     }
@@ -3247,7 +3281,7 @@ function cancelViolation(id) {
     const it = violations.find(v => v.id === id);
     if (it) {
       it.status = 'Đã hủy';
-      localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+      updateViolationsLocalAndCloud();
       renderReviewTable();
       renderLeaderboard();
       updatePendingBadge();
@@ -3376,7 +3410,7 @@ function saveUserAccountsToStorage() {
     }
   });
 
-  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  updateUsersLocalAndCloud();
   alert('✅ Đã lưu thành công danh sách tài khoản, mật khẩu và phân quyền!');
 }
 
@@ -3660,7 +3694,7 @@ function resetSystemData() {
   if (confirmCode === 'XOA') {
     // 1. Xóa sạch biên bản
     violations = [];
-    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    updateViolationsLocalAndCloud();
 
     // 2. Xóa sạch dữ liệu Sổ Đầu Bài
     CLASSES.forEach(c => {
@@ -3672,7 +3706,7 @@ function resetSystemData() {
         updatedAt: new Date().toLocaleDateString('vi-VN')
       };
     });
-    localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+    updateSdbLocalAndCloud();
 
     alert('✅ ĐÃ LÀM MỚI DỮ LIỆU THÀNH CÔNG!\nHệ thống đã dọn dẹp sạch sẽ điểm thi đua và sẵn sàng cho Năm học mới.');
     location.reload();
