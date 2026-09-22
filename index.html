@@ -1177,23 +1177,31 @@ let STUDENTS_DB = [];
 
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchStudentsFromDrive() {
+  // 1. LOAD NGAY TỪ CACHE (NẾU CÓ) ĐỂ VẼ GIAO DIỆN TỨC THÌ
+  try {
+    const localData = localStorage.getItem('yka_students_db_v1');
+    if (localData) {
+      STUDENTS_DB = JSON.parse(localData);
+      CLASSES = getDynamicClasses();
+      // Hiển thị UI ngay lập tức
+      if (loggedUser) setupUserSessionUI();
+      else renderLeaderboard();
+    }
+  } catch (e) { console.error("Lỗi đọc cache:", e); }
+
+  // 2. GỌI GOOGLE SHEETS NGẦM ĐỂ LẤY DỮ LIỆU MỚI NHẤT
   try {
     const response = await fetch(GOOGLE_SHEETS_API_URL, { redirect: "follow" });
     const data = await response.json();
     
     if (data && data.length > 0) {
       STUDENTS_DB = data;
-      // Lưu vào bộ nhớ tạm để dùng offline nếu mất mạng
       localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
-      
-      // Cập nhật lại giao diện ngay lập tức nếu các bảng đang mở
       CLASSES = getDynamicClasses();
       
-      if (loggedUser) {
-        setupUserSessionUI(); // Lệnh vẽ lại toàn bộ các bảng khi dữ liệu tải xong
-      } else {
-        renderLeaderboard();
-      }
+      // Vẽ lại UI ngầm định để update nếu có học sinh mới
+      if (loggedUser) setupUserSessionUI(); 
+      else renderLeaderboard();
       
       if (document.getElementById('codoClassSelect')) updateStudentDatalist(document.getElementById('codoClassSelect').value);
       if (document.getElementById('tnxkClassSelect')) updateStudentDatalist(document.getElementById('tnxkClassSelect').value);
@@ -1201,29 +1209,7 @@ async function fetchStudentsFromDrive() {
       if (document.getElementById('hk1SummaryTableBody')) renderHk1SummaryTable();
     }
   } catch (error) {
-    console.warn("Không kết nối được Google Drive, đang dùng dữ liệu lưu tạm trên máy:", error);
-    
-    // Nếu mất mạng, hệ thống tự lùi về lấy dữ liệu cũ đã lưu trên máy
-    try {
-      const localData = localStorage.getItem('yka_students_db_v1');
-      if (localData) {
-        STUDENTS_DB = JSON.parse(localData);
-        CLASSES = getDynamicClasses();
-
-        if (document.getElementById('manageStudentClassFilter')) {
-          renderStudentManagementTable();
-        }
-
-        if (document.getElementById('hk1SummaryTableBody')) {
-          renderHk1SummaryTable();
-        }
-
-        console.log(`[STUDENTS] Khôi phục ${STUDENTS_DB.length} học sinh từ localStorage`);
-      }
-    } catch (e) {
-      console.error("Lỗi đọc cache danh sách học sinh:", e);
-      STUDENTS_DB = [];
-    }
+    console.warn("Không kết nối được Google Drive, tiếp tục dùng dữ liệu cache.");
   }
 }
 
@@ -2820,28 +2806,96 @@ function renderCodoLogsTable() {
   const tbody = document.getElementById('codoLogsBody');
   tbody.innerHTML = '';
 
-  const list = violations.filter(v => loggedUser.scope.includes(v.classId) && !v.recorder.includes('TNXK')).reverse();
+  const list = violations
+    .filter(v =>
+      loggedUser &&
+      (
+        loggedUser.role === 'admin' ||
+        loggedUser.scope.includes(v.classId)
+      ) &&
+      !v.recorder.includes('TNXK')
+    )
+    .reverse();
+
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Chưa có vi phạm nào trong các lớp bạn phụ trách.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8"
+            style="text-align:center; padding:1.2rem; color:var(--text-muted);">
+          Chưa có vi phạm Cờ đỏ nào.
+        </td>
+      </tr>`;
     return;
   }
 
   list.forEach(v => {
     const tr = document.createElement('tr');
+
     tr.innerHTML = `
       <td>${v.date}</td>
-      <td><strong>Chi đoàn ${v.classId}</strong></td>
-      <td>${v.student}</td>
-      <td><span style="color:var(--danger); font-weight:600;">[${v.code}]</span> ${v.name}</td>
-      <td style="text-align:center; font-weight:bold; color:${v.points < 0 ? 'var(--danger)' : 'var(--success)'};">${v.points > 0 ? '+' : ''}${v.points}</td>
-      <td style="font-size:0.8rem;">
-        <div>${v.evidence}</div>
-        ${v.linkEvidence ? `<div style="margin-top:0.25rem;"><a href="${v.linkEvidence}" target="_blank" style="color:var(--primary-light); font-weight:600;">🔗 Mở Link File</a></div>` : ''}
-        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${v.imageEvidence}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Xem ảnh"></div>` : ''}
+
+      <td>
+        <strong>Chi đoàn ${v.classId}</strong>
       </td>
-      <td style="font-size:0.8rem;">${v.recorder}</td>
-      <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status}</span></td>
+
+      <td>${v.student}</td>
+
+      <td>
+        <span style="color:var(--danger); font-weight:600;">
+          [${v.code}]
+        </span>
+        ${v.name}
+      </td>
+
+      <td style="text-align:center;
+                 font-weight:bold;
+                 color:${v.points < 0 ? 'var(--danger)' : 'var(--success)'};">
+        ${v.points > 0 ? '+' : ''}${v.points}
+      </td>
+
+      <td style="font-size:0.8rem;">
+        <div>${v.evidence || ''}</div>
+
+        ${
+          v.linkEvidence
+            ? `<div style="margin-top:0.25rem;">
+                 <a href="${v.linkEvidence}"
+                    target="_blank"
+                    style="color:var(--primary-light); font-weight:600;">
+                    🔗 Mở Link File
+                 </a>
+               </div>`
+            : ''
+        }
+
+        ${
+          v.imageEvidence
+            ? `<div style="margin-top:0.25rem;">
+                 <img
+                   src="${v.imageEvidence}"
+                   class="evidence-img-thumb"
+                   onclick="openImgModal('${v.imageEvidence}')"
+                   title="Xem ảnh">
+               </div>`
+            : ''
+        }
+      </td>
+
+      <td style="font-size:0.8rem;">
+        ${v.recorder}
+      </td>
+
+      <td style="text-align:center;">
+        <span class="badge ${
+          v.status === 'Đã duyệt'
+            ? 'badge-success'
+            : 'badge-warning'
+        }">
+          ${v.status}
+        </span>
+      </td>
     `;
+
     tbody.appendChild(tr);
   });
 }
@@ -2884,8 +2938,9 @@ function calcTnxkPoints() {
   if (r) document.getElementById('tnxkFinalPointInput').value = r.point * mult;
 }
 
-function handleTnxkViolationSubmit(e) {
+async function handleTnxkViolationSubmit(e) {
   e.preventDefault();
+
   const classId = document.getElementById('tnxkClassSelect').value;
 
   if (!loggedUser.scope.includes(classId) && loggedUser.role !== 'admin') {
@@ -2897,13 +2952,26 @@ function handleTnxkViolationSubmit(e) {
   const student = document.getElementById('tnxkStudentInput').value.trim();
   const code = document.getElementById('tnxkRuleSelect').value;
   const mult = parseInt(document.getElementById('tnxkMultSelect').value);
-  const points = parseFloat(document.getElementById('tnxkFinalPointInput').value);
+  const points = parseFloat(
+    document.getElementById('tnxkFinalPointInput').value
+  );
   const evidence = document.getElementById('tnxkEvidenceInput').value.trim();
   const linkEvidence = document.getElementById('tnxkLinkEvidence').value.trim();
+
   const fileInput = document.getElementById('tnxkImageEvidence');
+
   const rule = RULES.find(r => r.code === code);
 
-  const saveTnxkRecord = (imgBase64) => {
+  if (!rule) {
+    alert('⚠️ Vui lòng chọn nội dung vi phạm.');
+    return;
+  }
+
+  // =====================================================
+  // HÀM LƯU BIÊN BẢN SAU KHI ĐÃ CÓ URL ẢNH
+  // =====================================================
+  const saveTnxkRecord = (imageUrl) => {
+
     const newV = {
       id: Date.now(),
       date,
@@ -2916,15 +2984,28 @@ function handleTnxkViolationSubmit(e) {
       recorder: loggedUser.name,
       evidence,
       linkEvidence,
-      imageEvidence: imgBase64 || '',
-      status: loggedUser.role === 'admin' ? 'Đã duyệt' : 'Chờ duyệt'
+
+      // CHỈ LƯU URL ẢNH
+      // KHÔNG LƯU BASE64
+      imageEvidence: imageUrl || '',
+
+      status: loggedUser.role === 'admin'
+        ? 'Đã duyệt'
+        : 'Chờ duyệt'
     };
 
     violations.push(newV);
-    localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
 
-    alert(`⚡ Tổ Trưởng TNXK đã lưu biên bản cho Chi đoàn ${classId}!
-Trạng thái: ${newV.status}`);
+    localStorage.setItem(
+      'yka_violations_v1',
+      JSON.stringify(violations)
+    );
+
+    alert(
+      `⚡ Tổ Trưởng TNXK đã lưu biên bản cho Chi đoàn ${classId}!\n` +
+      `Trạng thái: ${newV.status}`
+    );
+
     document.getElementById('tnxkStudentInput').value = '';
     document.getElementById('tnxkEvidenceInput').value = '';
     document.getElementById('tnxkLinkEvidence').value = '';
@@ -2937,41 +3018,236 @@ Trạng thái: ${newV.status}`);
     updatePendingBadge();
   };
 
-  if (fileInput.files && fileInput.files[0]) {
-    const reader = new FileReader();
-    reader.onload = (re) => saveTnxkRecord(re.target.result);
-    reader.readAsDataURL(fileInput.files[0]);
-  } else {
+
+  // =====================================================
+  // KHÔNG CÓ ẢNH
+  // =====================================================
+  if (!fileInput.files || !fileInput.files[0]) {
     saveTnxkRecord('');
+    return;
+  }
+
+
+  // =====================================================
+  // CÓ ẢNH → UPLOAD GOOGLE DRIVE
+  // =====================================================
+
+  const file = fileInput.files[0];
+
+  // Giới hạn ảnh để tránh gửi file quá lớn
+  const MAX_SIZE = 5 * 1024 * 1024;
+
+  if (file.size > MAX_SIZE) {
+    alert('⚠️ Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5 MB.');
+    return;
+  }
+
+  const GOOGLE_SCRIPT_URL =
+    'https://script.google.com/macros/s/AKfycbxflvj0yGxs6fanNBUeGdR9MpIFUAXTHDvtTzWCxHHqeHHGEdndZkd5Zu2hq_cgpdRryw/exec';
+
+
+  // Hiển thị trạng thái
+  const submitBtn = e.submitter;
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.dataset.oldText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '⏳ Đang tải ảnh lên Drive...';
+  }
+
+
+  try {
+
+    // Đọc ảnh thành Base64 để gửi lên Apps Script
+    const base64 = await new Promise((resolve, reject) => {
+
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(reader.result);
+
+      reader.onerror = () => {
+        reject(new Error('Không đọc được file ảnh.'));
+      };
+
+      reader.readAsDataURL(file);
+    });
+
+
+    console.log('[TNXK] Đang upload ảnh lên Google Drive...');
+
+
+    // Gửi ảnh lên Google Apps Script
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+
+      body: JSON.stringify({
+        fileName:
+          'TNXK_' +
+          classId +
+          '_' +
+          Date.now() +
+          '_' +
+          file.name,
+
+        mimeType: file.type || 'image/jpeg',
+
+        base64: base64
+      })
+    });
+
+
+    if (!response.ok) {
+      throw new Error(
+        'HTTP ' + response.status
+      );
+    }
+
+
+    const result = await response.json();
+
+
+    console.log('[TNXK] Kết quả upload:', result);
+
+
+    if (result.status !== 'success' || !result.url) {
+      throw new Error(
+        result.message || 'Google Drive không trả về URL ảnh.'
+      );
+    }
+
+
+    console.log(
+      '[TNXK] Upload thành công:',
+      result.url
+    );
+
+
+    // LƯU BIÊN BẢN VỚI URL DRIVE
+    saveTnxkRecord(result.url);
+
+
+  } catch (error) {
+
+    console.error(
+      '[TNXK] Upload ảnh thất bại:',
+      error
+    );
+
+    alert(
+      '❌ Không thể tải ảnh lên Google Drive.\n\n' +
+      error.message +
+      '\n\nBiên bản chưa được lưu.'
+    );
+
+  } finally {
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+
+      if (submitBtn.dataset.oldText) {
+        submitBtn.innerHTML = submitBtn.dataset.oldText;
+      }
+    }
   }
 }
-
 function renderTnxkLogsTable() {
   const tbody = document.getElementById('tnxkLogsBody');
   tbody.innerHTML = '';
 
-  const list = violations.filter(v => loggedUser.scope.includes(v.classId) && v.recorder.includes('TNXK')).reverse();
+  const list = violations
+    .filter(v =>
+      loggedUser &&
+      (
+        loggedUser.role === 'admin' ||
+        loggedUser.scope.includes(v.classId)
+      ) &&
+      v.recorder.includes('TNXK')
+    )
+    .reverse();
+
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Chưa có biên bản TNXK nào được lập trong khối bạn phụ trách.</td></tr>`;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8"
+            style="text-align:center; padding:1.2rem; color:var(--text-muted);">
+          Chưa có biên bản TNXK nào.
+        </td>
+      </tr>`;
     return;
   }
 
   list.forEach(v => {
     const tr = document.createElement('tr');
+
     tr.innerHTML = `
       <td>${v.date}</td>
-      <td><strong>Chi đoàn ${v.classId}</strong></td>
-      <td>${v.student}</td>
-      <td><span style="color:var(--danger); font-weight:600;">[${v.code}]</span> ${v.name}</td>
-      <td style="text-align:center; font-weight:bold; color:var(--danger);">${v.points}</td>
-      <td style="font-size:0.8rem;">
-        <div>${v.evidence}</div>
-        ${v.linkEvidence ? `<div style="margin-top:0.25rem;"><a href="${v.linkEvidence}" target="_blank" style="color:var(--primary-light); font-weight:600;">🔗 Mở Link File</a></div>` : ''}
-        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${v.imageEvidence}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Xem ảnh"></div>` : ''}
+
+      <td>
+        <strong>Chi đoàn ${v.classId}</strong>
       </td>
-      <td style="font-size:0.8rem;">${v.recorder}</td>
-      <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status}</span></td>
+
+      <td>${v.student}</td>
+
+      <td>
+        <span style="color:var(--danger); font-weight:600;">
+          [${v.code}]
+        </span>
+        ${v.name}
+      </td>
+
+      <td style="text-align:center;
+                 font-weight:bold;
+                 color:var(--danger);">
+        ${v.points}
+      </td>
+
+      <td style="font-size:0.8rem;">
+        <div>${v.evidence || ''}</div>
+
+        ${
+          v.linkEvidence
+            ? `<div style="margin-top:0.25rem;">
+                 <a href="${v.linkEvidence}"
+                    target="_blank"
+                    style="color:var(--primary-light); font-weight:600;">
+                    🔗 Mở Link File
+                 </a>
+               </div>`
+            : ''
+        }
+
+        ${
+          v.imageEvidence
+            ? `<div style="margin-top:0.25rem;">
+                 <img
+                   src="${v.imageEvidence}"
+                   class="evidence-img-thumb"
+                   onclick="openImgModal('${v.imageEvidence}')"
+                   title="Xem ảnh">
+               </div>`
+            : ''
+        }
+      </td>
+
+      <td style="font-size:0.8rem;">
+        ${v.recorder}
+      </td>
+
+      <td style="text-align:center;">
+        <span class="badge ${
+          v.status === 'Đã duyệt'
+            ? 'badge-success'
+            : 'badge-warning'
+        }">
+          ${v.status}
+        </span>
+      </td>
     `;
+
     tbody.appendChild(tr);
   });
 }
@@ -3256,6 +3532,7 @@ function exportStudentViolationsCSV() {
 
 
 // ==================== QUẢN LÝ HỌC SINH ====================
+// ==================== QUẢN LÝ HỌC SINH ====================
 function renderStudentManagementTable() {
   const sel = document.getElementById('manageStudentClassFilter');
   if (sel.options.length === 0) {
@@ -3267,29 +3544,35 @@ function renderStudentManagementTable() {
   const filter = sel.value;
   const tbody = document.getElementById('manageStudentTableBody');
   if(!tbody) return;
-  tbody.innerHTML = '';
 
   const list = STUDENTS_DB.filter(s => filter === 'ALL' || s.classId === filter).sort((a,b) => {
       if(a.classId !== b.classId) return a.classId.localeCompare(b.classId, undefined, {numeric: true});
       return a.stt - b.stt;
   });
 
+  // PHẦN CODE ĐÃ ĐƯỢC TỐI ƯU HIỆU SUẤT TẠI ĐÂY:
+  // Gộp tất cả thẻ <tr> vào 1 biến text, sau đó mới in ra màn hình 1 lần
+  let htmlContent = '';
+  
   list.forEach((s, idx) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="text-align:center;">${idx + 1}</td>
-      <td style="text-align:center;"><strong>${s.classId}</strong></td>
-      <td style="text-align:center; font-family:monospace;">${s.id}</td>
-      <td><strong>${s.name}</strong></td>
-      <td style="text-align:center;">${s.dob}</td>
-      <td style="text-align:center;">${s.gender}</td>
-      <td style="text-align:center;" class="no-print">
-        <button class="btn btn-outline btn-sm" onclick="editStudent('${s.id}')">✏️ Sửa</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">🗑️ Xóa</button>
-      </td>
+    htmlContent += `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="text-align:center;"><strong>${s.classId}</strong></td>
+        <td style="text-align:center; font-family:monospace;">${s.id}</td>
+        <td><strong>${s.name}</strong></td>
+        <td style="text-align:center;">${s.dob}</td>
+        <td style="text-align:center;">${s.gender}</td>
+        <td style="text-align:center;" class="no-print">
+          <button class="btn btn-outline btn-sm" onclick="editStudent('${s.id}')">✏️ Sửa</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">🗑️ Xóa</button>
+        </td>
+      </tr>
     `;
-    tbody.appendChild(tr);
   });
+  
+  // Gắn nguyên cục HTML khổng lồ vào bảng chỉ với 1 thao tác
+  tbody.innerHTML = htmlContent;
 }
 
 function openAddStudentModal() {
