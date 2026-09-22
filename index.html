@@ -3586,7 +3586,7 @@ function deleteStudent(id) {
   }
 }
 
-function saveStudentsDB() {
+async function saveStudentsDB() {
   const classesMap = {};
   STUDENTS_DB.forEach(s => {
     if(!classesMap[s.classId]) classesMap[s.classId] = [];
@@ -3606,18 +3606,30 @@ function saveStudentsDB() {
   STUDENTS_DB = newDb;
   localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
   
-  // Tạo dấu thời gian để các máy khác biết đây là bản mới nhất
   const nowTime = Date.now();
   localStorage.setItem('yka_students_time', nowTime.toString());
   
   CLASSES = getDynamicClasses();
+
+  // === ĐOẠN MỚI THÊM: GỬI LÊN GOOGLE SCRIPT ĐỂ GHI ĐÈ EXCEL ===
+  try {
+    console.log("Đang đồng bộ danh sách lên Google Sheet...");
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "update_students", students: STUDENTS_DB })
+    });
+  } catch (error) {
+    console.error("Lỗi khi ghi đè lên Google Sheet:", error);
+  }
+  // ============================================================
   
   if (mqttClient && mqttClient.connected && loggedUser && loggedUser.role === 'admin') {
     const payload = { timestamp: nowTime, data: STUDENTS_DB };
     mqttClient.publish("yka/thidua/students", JSON.stringify(payload), { retain: true });
   }
   
-  alert('✅ Đã lưu và đồng bộ danh sách học sinh toàn trường!');
+  alert('✅ Đã lưu và GHI ĐÈ danh sách học sinh mới lên Google Sheet thành công!');
   renderStudentManagementTable();
   if (document.getElementById('codoClassSelect')) updateStudentDatalist(document.getElementById('codoClassSelect').value);
 }
