@@ -1178,19 +1178,21 @@ let CLASSES = [];
 
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchStudentsFromDrive() {
-  // 1. LOAD NGAY TỪ CACHE (NẾU CÓ) ĐỂ VẼ GIAO DIỆN TỨC THÌ
+  // 1. Nạp ngay từ bộ nhớ đệm (nếu có) để web hiện ngay không cần chờ
   try {
     const localData = localStorage.getItem('yka_students_db_v1');
     if (localData) {
       STUDENTS_DB = JSON.parse(localData);
       CLASSES = getDynamicClasses();
-      // Hiển thị UI ngay lập tức
       if (loggedUser) setupUserSessionUI();
       else renderLeaderboard();
+      
+      // Kích hoạt ngay danh sách học sinh cho lớp đang hiển thị
+      refreshStudentDatalists();
     }
   } catch (e) { console.error("Lỗi đọc cache:", e); }
 
-  // 2. GỌI GOOGLE SHEETS NGẦM ĐỂ LẤY DỮ LIỆU MỚI NHẤT
+  // 2. Gọi Google Sheets ngầm để cập nhật dữ liệu mới nhất
   try {
     const response = await fetch(GOOGLE_SHEETS_API_URL, { redirect: "follow" });
     const data = await response.json();
@@ -1200,17 +1202,27 @@ async function fetchStudentsFromDrive() {
       localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
       CLASSES = getDynamicClasses();
       
-      // Vẽ lại UI ngầm định để update nếu có học sinh mới
       if (loggedUser) setupUserSessionUI(); 
       else renderLeaderboard();
       
-      if (document.getElementById('codoClassSelect')) updateStudentDatalist(document.getElementById('codoClassSelect').value);
-      if (document.getElementById('tnxkClassSelect')) updateStudentDatalist(document.getElementById('tnxkClassSelect').value);
+      // ĐỒNG BỘ: Nạp ngay học sinh vào ô gợi ý ngay khi Google Sheet tải xong
+      refreshStudentDatalists();
+      
       if (document.getElementById('manageStudentClassFilter')) renderStudentManagementTable();
       if (document.getElementById('hk1SummaryTableBody')) renderHk1SummaryTable();
     }
   } catch (error) {
     console.warn("Không kết nối được Google Drive, tiếp tục dùng dữ liệu cache.");
+  }
+}
+function refreshStudentDatalists() {
+  const codoSel = document.getElementById('codoClassSelect');
+  if (codoSel && codoSel.value) {
+    updateStudentDatalist(codoSel.value);
+  }
+  const tnxkSel = document.getElementById('tnxkClassSelect');
+  if (tnxkSel && tnxkSel.value) {
+    updateStudentDatalist(tnxkSel.value);
   }
 }
 
@@ -2675,6 +2687,13 @@ function setupCodoForm() {
     opt.textContent = `Chi đoàn ${cid}`;
     classSel.appendChild(opt);
   });
+
+  // VÁ LỖI: Kích hoạt danh sách học sinh ngay cho lớp mặc định đầu tiên
+  if (classSel.value) {
+    updateStudentDatalist(classSel.value);
+  }
+  // Tự động nạp học sinh cho lớp mặc định đầu tiên
+  if (classSel.value) updateStudentDatalist(classSel.value);
   renderCodoLogsTable();
 }
 
@@ -2703,42 +2722,67 @@ const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRB
 // =========================================================================
 // 2. HÀM DÙNG CHUNG ĐỂ UPLOAD ẢNH LÊN GOOGLE DRIVE (TỐI ƯU GỌN NHẸ)
 // =========================================================================
-async function uploadImageToDrive(file, prefix, classId) {
-  return new Promise((resolve, reject) => {
-    // Giới hạn ảnh 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      return reject(new Error('Kích thước ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.'));
-    }
-
+// HÀM NÉN ẢNH TỰ ĐỘNG TRÊN TRÌNH DUYỆT (GIẢM DUNG LƯỢNG, TĂNG TỐC ĐỘ GẤP 10 LẦN)
+function compressImage(file, maxWidth = 1280, quality = 0.8) {
+  return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = async function(e) {
-      try {
-        const base64Data = e.target.result.split(',')[1]; 
-        const payload = {
-          fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
-          mimeType: file.type || "image/jpeg",
-          base64: base64Data
-        };
-
-        const response = await fetch(MASTER_APP_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        if(result.status === "success") {
-          resolve(result.url); // Trả về link Drive
-        } else {
-          reject(new Error(result.message || 'Drive từ chối nhận file.'));
-        }
-      } catch (err) {
-        reject(new Error('Lỗi mạng khi tải ảnh lên Google Drive.'));
-      }
-    };
-    reader.onerror = () => reject(new Error('Không thể đọc file ảnh.'));
     reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Xuất ra base64 jpeg dung lượng cực nhẹ
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl.split(',')[1]);
+      };
+    };
   });
+}
+
+// HÀM TẢI ẢNH LÊN GOOGLE DRIVE CHUẨN XÁC
+async function uploadImageToDrive(file, prefix, classId) {
+  try {
+    // 1. Nén ảnh trước khi tải
+    const base64Data = await compressImage(file);
+
+    const payload = {
+      fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+      base64: base64Data
+    };
+
+    // 2. Gửi dữ liệu bằng text/plain để tránh bị chặn CORS
+    const response = await fetch(GOOGLE_SHEETS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      return result.url;
+    } else {
+      throw new Error(result.message || "Lỗi lưu file từ Google Drive.");
+    }
+  } catch (err) {
+    console.error("Chi tiết lỗi tải ảnh:", err);
+    throw new Error("Không thể kết nối đến Google Drive: " + err.message);
+  }
 }
 
 // =========================================================================
@@ -3007,9 +3051,16 @@ function setupTnxkForm() {
     const cObj = CLASSES.find(c => c.id === cid);
     const opt = document.createElement('option');
     opt.value = cid;
-    opt.textContent = `Chi đoàn ${cid} (Khối ${cObj.grade})`;
+    opt.textContent = `Chi đoàn ${cid} (Khối ${cObj ? cObj.grade : ''})`;
     classSel.appendChild(opt);
   });
+
+  // VÁ LỖI: Kích hoạt danh sách học sinh ngay cho lớp mặc định đầu tiên
+  if (classSel.value) {
+    updateStudentDatalist(classSel.value);
+  }
+  // Tự động nạp học sinh cho lớp mặc định đầu tiên
+  if (classSel.value) updateStudentDatalist(classSel.value);
   renderTnxkLogsTable();
 }
 
