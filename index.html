@@ -1873,7 +1873,7 @@ function exportHk1Excel() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Danh_Sach_Xep_Loai_Ren_Luyen_HK1_THPT_Vu_Duy_Thanh_${classFilter}.csv`;
+  a.download = `Danh_Sach_Xep_Loai_Ren_Luyen_HK1_THPT_Yen_Khanh_A_${classFilter}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2022,7 +2022,7 @@ function exportBchBonusCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Danh_Sach_Khen_Thuong_Hoat_Dong_THPT_Vu_Duy_Thanh.csv`;
+  a.download = `Danh_Sach_Khen_Thuong_Hoat_Dong_THPT_Yen_Khanh_A.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2176,7 +2176,7 @@ function exportHk1ClassExcel() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Xep_Loai_Thi_Dua_Tap_The_${term}_THPT_Vu_Duy_Thanh.csv`;
+  a.download = `Xep_Loai_Thi_Dua_Tap_The_${term}_THPT_Yen_Khanh_A.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -3429,7 +3429,7 @@ function exportLeaderboardCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Thi_Dua_31_Chi_Doan_THPT_Vu_Duy_Thanh_Theo_Diem_Tru.csv`;
+  a.download = `Thi_Dua_31_Chi_Doan_THPT_Yen_Khanh_A_Theo_Diem_Tru.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -3493,7 +3493,7 @@ function exportStudentViolationsCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Bao_Cao_Loi_Hoc_Sinh_THPT_Vu_Duy_Thanh.csv`;
+  a.download = `Bao_Cao_Loi_Hoc_Sinh_THPT_Yen_Khanh_A.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
