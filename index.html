@@ -1177,7 +1177,7 @@ let CLASSES = getDynamicClasses();
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchDatabaseFromCloud() {
   try {
-    const response = await fetch(MASTER_APP_SCRIPT_URL, { redirect: "follow" });
+    const response = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + new Date().getTime(), { redirect: "follow" });
     const db = await response.json();
     
     if (db.status === "error") {
@@ -2733,12 +2733,13 @@ async function syncDataToCloud(fileName, content) {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: "follow", // <-- BẮT BUỘC PHẢI THÊM DÒNG NÀY
       body: JSON.stringify({ action: "save_data", fileName: fileName, content: content })
     });
   } catch(e) { console.error("Lỗi lưu lên cloud:", e); }
 }
 
-// 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
+
 // 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
 function updateViolationsLocalAndCloud() {
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
