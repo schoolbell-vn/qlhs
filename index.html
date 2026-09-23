@@ -1486,23 +1486,26 @@ function connectMqtt() {
     }
 
     // ---- ĐỒNG BỘ ĐIỂM SỐ VÀ BIÊN BẢN LỖI ----
+    // ---- ĐỒNG BỘ ĐIỂM SỐ VÀ BIÊN BẢN LỖI ----
     if (topic === MQTT_TOPIC) {
       try {
         const payload = JSON.parse(message.toString());
-        if (loggedUser && payload.sender === loggedUser.username) return; 
+        // Bỏ kiểm tra username, chỉ chặn tin nhắn từ chính thiết bị này gửi đi
+        if (payload.sender === SESSION_ID) return; 
 
         if (payload.action === 'NEW_VIOLATION') {
           violations.push(payload.data);
-          updateViolationsLocalAndCloud();
+          // Chỉ cập nhật bộ nhớ tạm, tuyệt đối không đẩy ngược lên Cloud
+          localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
         } 
         else if (payload.action === 'UPDATE_VIOLATION_STATUS') {
           const v = violations.find(x => x.id === payload.data.id);
           if (v) v.status = payload.data.status;
-          updateViolationsLocalAndCloud();
+          localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
         }
         else if (payload.action === 'UPDATE_SDB') {
           sdbFullData[payload.data.classId] = payload.data.sdbData;
-          updateSdbLocalAndCloud();
+          localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
         }
 
         renderLeaderboard();
@@ -1516,10 +1519,12 @@ function connectMqtt() {
 }
 
 // 4. Hàm bắn tin nhắn đi
+const SESSION_ID = "DEVICE_" + Math.random().toString(36).substr(2, 9);
+
 function publishUpdate(action, data) {
   if (mqttClient && mqttClient.connected) {
     const payload = {
-      sender: loggedUser ? loggedUser.username : 'khach',
+      sender: SESSION_ID, // Đổi từ username sang ID thiết bị
       action: action,
       data: data
     };
