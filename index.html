@@ -1313,6 +1313,18 @@ async function fetchDatabaseFromCloud() {
     
     // Nạp Danh sách Học sinh
     if (db.students && db.students.length > 0) {
+      // Ép chuẩn hóa toàn bộ ngày sinh bị dính chữ GMT về dạng DD/MM/YYYY
+      db.students.forEach(s => {
+        if (s.dob && (s.dob.includes("GMT") || s.dob.includes("T00:"))) {
+          let d = new Date(s.dob);
+          if (!isNaN(d.getTime())) {
+            let day = ("0" + d.getDate()).slice(-2);
+            let month = ("0" + (d.getMonth() + 1)).slice(-2);
+            s.dob = day + "/" + month + "/" + d.getFullYear();
+          }
+        }
+      });
+      
       STUDENTS_DB = db.students;
       localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
       CLASSES = getDynamicClasses();
