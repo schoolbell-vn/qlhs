@@ -79,41 +79,108 @@
   }
   .btn-logout:hover { background: #dc2626; }
 
-  /* Navigation Tabs */
-  .nav-tabs {
-    background: var(--surface); border-bottom: 1px solid var(--border-light); display: flex;
-    overflow-x: auto; padding: 0 1.25rem; box-shadow: var(--shadow-sm); position: sticky; top: 0; z-index: 40;
+  /* ================= APP LAYOUT & SIDEBAR ================= */
+  .app-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden; /* Khóa cuộn toàn trang, chia vùng cuộn độc lập */
+    height: calc(100vh - 72px); /* Trừ đi độ cao của Header */
   }
-  .tab-btn {
-    background: none; border: none; padding: 0.85rem 1.15rem; font-size: 0.88rem; font-weight: 600;
-    color: var(--text-muted); cursor: pointer; position: relative; white-space: nowrap; transition: 0.2s;
-    display: flex; align-items: center; gap: 0.45rem;
-  }
-  .tab-btn:hover { color: var(--primary-light); }
-  .tab-btn.active { color: var(--primary); font-weight: 700; }
-  .tab-btn.active::after {
-    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--primary); border-radius: 3px 3px 0 0;
-  }
-  .tab-badge { background: var(--danger); color: white; border-radius: 9999px; font-size: 0.7rem; font-weight: 800; padding: 0.1rem 0.45rem; }
 
-  /* Main layout */
-  main { flex: 1; padding: 1.25rem 1.5rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+  /* Cột Sidebar bên trái */
+  .sidebar {
+    width: 270px;
+    background: var(--surface);
+    border-right: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0.75rem;
+    overflow-y: auto;
+    gap: 0.3rem;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 0.75rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: left;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Đẩy badge báo cáo sang mép phải */
+    border-left: 4px solid transparent;
+  }
+
+  .tab-btn:hover {
+    background: #f1f5f9;
+    color: var(--primary);
+  }
+
+  .tab-btn.active {
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 700;
+    border-left-color: var(--primary); /* Thanh highlight bên mép trái */
+  }
+
+  .tab-badge {
+    background: var(--danger);
+    color: white;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.15rem 0.5rem;
+  }
+
+  /* Khu vực Main bên phải */
+  main {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto; /* Cho phép cuộn độc lập bên phải */
+    background: var(--bg-main);
+  }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; animation: fadeIn 0.25s ease-out; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* Scope Banner */
-  .scope-banner {
-    background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid var(--primary-light);
-    border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex;
-    justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+  /* Giao diện Thông minh cho Điện thoại (Mobile Responsive) */
+  @media (max-width: 768px) {
+    .app-container {
+      flex-direction: column; /* Đổi lại thành xếp dọc trên mobile */
+      height: auto;
+      overflow: visible;
+    }
+    .sidebar {
+      width: 100%;
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 0;
+      border-right: none;
+      border-bottom: 1px solid var(--border-light);
+      gap: 0;
+    }
+    .tab-btn {
+      white-space: nowrap;
+      border-radius: 0;
+      border-left: none;
+      border-bottom: 3px solid transparent;
+      padding: 0.85rem 1.15rem;
+    }
+    .tab-btn.active {
+      border-left: none;
+      border-bottom-color: var(--primary);
+      background: none;
+    }
+    main { padding: 1rem; }
   }
-  .scope-banner.warning { background: #fffbeb; border-color: #fde68a; border-left-color: var(--warning); }
-  .scope-banner.success { background: #f0fdf4; border-color: #bbf7d0; border-left-color: var(--success); }
-  .scope-title { font-weight: 700; font-size: 0.88rem; color: #1e3a8a; }
-  .scope-desc { font-size: 0.8rem; color: #3b82f6; }
-
+  /* ========================================================= */
+  
   /* Cards */
   .card {
     background: var(--surface); border-radius: 12px; border: 1px solid var(--border-light);
@@ -220,6 +287,62 @@
     .tab-content { display: block !important; }
     #tab-codo, #tab-tnxk, #tab-sdb, #tab-admin-users { display: none !important; }
   }
+  /* ================== BẢN CẬP NHẬT GIAO DIỆN CỦA THẦY TÚ ================== */
+  
+  /* 1. Xóa bỏ/Ẩn hoàn toàn bảng hướng dẫn màu xanh ở mọi trang */
+  #scopeBanner {
+    display: none !important;
+  }
+
+  /* 2. Cấu hình cuộn độc lập cho cột trái và cột phải */
+  body {
+    height: 100vh !important; /* Khóa cứng chiều cao trang web bằng đúng màn hình */
+    overflow: hidden !important; /* Cấm trình duyệt cuộn toàn trang */
+  }
+
+  .app-container {
+    height: 100%;
+    overflow: hidden !important;
+  }
+
+  .sidebar {
+    overflow-y: auto !important; /* Cấp quyền chỉ cuộn dọc cho cột menu trái */
+    flex-shrink: 0; 
+  }
+
+  /* Làm đẹp thanh cuộn cho menu trái (tùy chọn) */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background-color: var(--border); border-radius: 4px; }
+
+  main {
+    overflow-y: auto !important; /* Cấp quyền chỉ cuộn dọc cho nội dung bên phải */
+    height: 100%; /* Giới hạn chiều cao để kích hoạt cuộn */
+    padding-bottom: 3rem !important; /* Tạo khoảng trống ở đáy cho dễ nhìn */
+  }
+
+  /* Trả lại trạng thái vuốt tự do cho điện thoại di động */
+  @media (max-width: 768px) {
+    body { height: auto !important; overflow: auto !important; }
+    .app-container { height: auto !important; overflow: visible !important; }
+    .sidebar { overflow-x: auto !important; overflow-y: hidden !important; }
+    main { height: auto !important; overflow: visible !important; }
+  }
+
+  /* ================== TĂNG ĐẬM MÀU NỀN MENU ĐANG CHỌN ================== */
+  
+  .tab-btn.active {
+    background: var(--primary) !important; /* Màu xanh đậm */
+    color: white !important; /* Chữ màu trắng */
+    border-left: none !important; /* Bỏ viền trái để mảng màu liền khối */
+    box-shadow: 0 4px 6px -1px rgba(30, 58, 138, 0.3) !important; /* Hiệu ứng bóng nổi 3D */
+    border-radius: 8px !important; /* Bo góc mềm mại */
+  }
+
+  /* Khi nền menu màu đậm, ta cần đảo ngược màu của con số thông báo đỏ (nếu có) thành nền trắng chữ đỏ để dễ đọc */
+  .tab-btn.active .tab-badge {
+    background: white !important;
+    color: var(--danger) !important;
+  }
 </style>
 </head>
 <body>
@@ -285,22 +408,25 @@
   </div>
 </header>
 
-<!-- Navigation Tabs -->
-<nav class="nav-tabs no-print">
+<!-- Main App Layout -->
+<div class="app-container">
+  
+  <!-- Thanh điều hướng dọc bên trái -->
+  <nav class="sidebar no-print">
   <button class="tab-btn active" id="tabBtn-board" onclick="switchTab('board')">📊 Bảng Xếp Hạng 36 chi đoàn</button>
-  <button class="tab-btn" id="tabBtn-sdb" onclick="switchTab('sdb')">📖 Cán Bộ Sổ Đầu Bài Lớp (Nghỉ Học & Điểm KT)</button>
-  <button class="tab-btn" id="tabBtn-codo" onclick="switchTab('codo')">🚩 Cờ Đỏ Chấm Tác Phong & Nề Nếp</button>
-  <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Tổ Trưởng TNXK Khối</button>
-  <button class="tab-btn" id="tabBtn-bch-bonus" onclick="switchTab('bch-bonus')">🎁 BCH Đoàn Cộng Thưởng Hoạt Động</button>
-  <button class="tab-btn" id="tabBtn-search" onclick="switchTab('search')">👤 Điểm Rèn Luyện Theo Tuần</button>
-  <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện HK I</button>
-  <button class="tab-btn" id="tabBtn-hk1-class" onclick="switchTab('hk1-class')">🏆 Tập Thể: Thi Đua HK1 & Cả Năm</button>
-  <button class="tab-btn" id="tabBtn-review" onclick="switchTab('review')">
-    ⚖️ Duyệt Biên Bản & Khiếu Nại <span class="tab-badge" id="pendingReviewBadge">0</span>
-  </button>
-  <button class="tab-btn" id="tabBtn-admin-users" onclick="switchTab('admin-users')">👥 Danh Sách 85 Tài Khoản & Mật Khẩu</button>
-  <button class="tab-btn" id="tabBtn-students" onclick="switchTab('students')">🧑‍🎓 Quản Lý Học Sinh</button>
-</nav>
+    <button class="tab-btn" id="tabBtn-sdb" onclick="switchTab('sdb')">📖 Cán Bộ SĐB (Nghỉ Học & Điểm KT)</button>
+    <button class="tab-btn" id="tabBtn-codo" onclick="switchTab('codo')">🚩 Cờ Đỏ Chấm Tác Phong & Nề Nếp</button>
+    <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Tổ Trưởng TNXK Khối</button>
+    <button class="tab-btn" id="tabBtn-bch-bonus" onclick="switchTab('bch-bonus')">🎁 BCH Đoàn Cộng Thưởng</button>
+    <button class="tab-btn" id="tabBtn-search" onclick="switchTab('search')">👤 Điểm Rèn Luyện Theo Tuần</button>
+    <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện HK I</button>
+    <button class="tab-btn" id="tabBtn-hk1-class" onclick="switchTab('hk1-class')">🏆 Tập Thể: Thi Đua HK1 & Cả Năm</button>
+    <button class="tab-btn" id="tabBtn-review" onclick="switchTab('review')">
+      ⚖️ Duyệt Biên Bản <span class="tab-badge" id="pendingReviewBadge">0</span>
+    </button>
+    <button class="tab-btn" id="tabBtn-admin-users" onclick="switchTab('admin-users')">👥 Quản Lý 85 Tài Khoản</button>
+    <button class="tab-btn" id="tabBtn-students" onclick="switchTab('students')">🧑‍🎓 Quản Lý Học Sinh</button>
+  </nav>
 
 <!-- Main Container -->
 <main>
