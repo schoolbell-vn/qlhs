@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Sổ LLĐT YKA</title>
 
-<!-- CÁC THẺ KÍCH HOẠT CHẾ ĐỘ ỨNG DỤNG (APP) TRÊN ĐIỆN THOẠI -->
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -45,7 +44,6 @@
   
   .btn-reset { margin-top: 1.5rem; background: #f1f5f9; border: none; color: #475569; font-size: 0.9rem; font-weight: 600; cursor: pointer; width: 100%; text-align: center; padding: 0.75rem; border-radius: 10px; }
   
-  /* Hướng dẫn cài App */
   .install-hint { margin-top: 2rem; background: #fffbeb; border: 1px solid #fde68a; padding: 1rem; border-radius: 12px; font-size: 0.85rem; color: #92400e; text-align: justify; line-height: 1.5; }
 </style>
 </head>
@@ -84,7 +82,6 @@
     <button class="btn-reset" onclick="forgetAndSearchAgain()">Đăng xuất / Đổi học sinh</button>
   </div>
 
-  <!-- Bảng hướng dẫn cài ra màn hình (Chỉ hiện ở thẻ nhập) -->
   <div class="install-hint" id="installHint">
     <strong>💡 Mẹo cho Phụ huynh:</strong> Để không phải nhập mã vào các lần sau, ông bà/bố mẹ hãy tải ứng dụng này ra màn hình chính điện thoại bằng cách: <br><br>
     - <strong>Dùng iPhone (Safari):</strong> Bấm biểu tượng <b>[Chia sẻ]</b> (hình ô vuông có mũi tên lên) ở thanh dưới cùng 👉 Chọn <b>[Thêm vào MH chính]</b>.<br>
@@ -93,8 +90,8 @@
 </div>
 
 <script>
-// THẦY DÁN ĐƯỜNG LINK CSV LẤY Ở BƯỚC TRƯỚC VÀO ĐÂY NHÉ:
-const CSV_DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNTRCwbVrhMzKjtsLCMrW863jnv_AcEx9GrcPnPb7erW2DXOgJLMDykW_pQm2kKnu9AUWh1VibAC1Z/pub?gid=1989826358&single=true&output=csv";
+// THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT VÀO ĐÂY (Giống hệt link bên app Giám thị)
+const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
 async function sha256Hash(text) {
   const encoder = new TextEncoder();
@@ -105,7 +102,6 @@ async function sha256Hash(text) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  // TỰ ĐỘNG NHỚ MÁY: Nếu đã từng nhập mã 1 lần -> Tự mở thẳng kết quả luôn
   const savedId = localStorage.getItem('yka_saved_moet_id');
   if (savedId) {
     document.getElementById('studentId').value = savedId;
@@ -125,45 +121,44 @@ async function executeSearch(id) {
   const inputCard = document.getElementById('inputCard');
   const hint = document.getElementById('installHint');
 
-  btn.innerHTML = "⏳ Đang kết nối...";
+  btn.innerHTML = "⏳ Đang kết nối an toàn...";
   btn.disabled = true;
 
   try {
-    // Chỉ mã hóa duy nhất Mã HS (Không còn ngày sinh)
     const rawInput = String(id).trim().toLowerCase().replace(/\s/g, '');
     const userHash = await sha256Hash(rawInput);
 
-    const response = await fetch(CSV_DATA_URL + "&t=" + new Date().getTime());
-    if (!response.ok) throw new Error("Không tải được dữ liệu.");
-    const csvText = await response.text();
+    // DÙNG CÙNG PHƯƠNG THỨC FETCH VỚI APP GIÁM THỊ (THÊM action=get_phuhuynh)
+    const response = await fetch(MASTER_APP_SCRIPT_URL + "?action=get_phuhuynh&t=" + new Date().getTime(), { redirect: "follow" });
+    const result = await response.json();
 
-    const rows = csvText.split('\n');
+    if (result.status !== "success") throw new Error("Chưa có dữ liệu đồng bộ.");
+    
+    const rows = result.data;
     let found = false;
 
+    // Quét tìm mã băm trong dữ liệu mảng
     for (let i = 1; i < rows.length; i++) {
-      const cols = rows[i].split(',');
-      if (cols.length >= 4) {
-        if (cols[0].trim() === userHash) {
-          found = true;
-          
-          // LƯU CHẶT VÀO MÁY ĐỂ LẦN SAU KHÔNG PHẢI GÕ NỮA
-          localStorage.setItem('yka_saved_moet_id', id);
+      const cols = rows[i];
+      if (cols.length >= 4 && cols[0].trim() === userHash) {
+        found = true;
+        
+        localStorage.setItem('yka_saved_moet_id', id);
 
-          document.getElementById('resScore').textContent = cols[1].trim() + " điểm";
-          
-          const rank = cols[2].trim();
-          const rankEl = document.getElementById('resRank');
-          rankEl.textContent = rank;
-          rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
-          
-          const rawDetails = cols.slice(3).join(',').replace(/^"|"$/g, '').trim();
-          document.getElementById('resDetails').innerHTML = rawDetails.split('|').join('<br>• ');
-          
-          resultBox.style.display = 'block';
-          inputCard.style.display = 'none'; 
-          hint.style.display = 'none';
-          break;
-        }
+        document.getElementById('resScore').textContent = cols[1].trim() + " điểm";
+        
+        const rank = cols[2].trim();
+        const rankEl = document.getElementById('resRank');
+        rankEl.textContent = rank;
+        rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
+        
+        const rawDetails = String(cols[3]).trim();
+        document.getElementById('resDetails').innerHTML = rawDetails.split('|').join('<br>• ');
+        
+        resultBox.style.display = 'block';
+        inputCard.style.display = 'none'; 
+        if(hint) hint.style.display = 'none';
+        break;
       }
     }
 
@@ -171,18 +166,17 @@ async function executeSearch(id) {
       alert("❌ Mã Học Sinh không chính xác hoặc chưa có dữ liệu trong tuần này.");
       inputCard.style.display = 'block';
       resultBox.style.display = 'none';
-      hint.style.display = 'block';
+      if(hint) hint.style.display = 'block';
     }
 
   } catch (error) {
-    alert("⚠️ Lỗi mạng: " + error.message);
+    alert("⚠️ Không thể tải dữ liệu lúc này. Vui lòng thử lại sau.\nLỗi: " + error.message);
   } finally {
     btn.innerHTML = "Tra Cứu Kết Quả";
     btn.disabled = false;
   }
 }
 
-// Chức năng Đăng xuất để kiểm tra cho con/cháu khác
 function forgetAndSearchAgain() {
   localStorage.removeItem('yka_saved_moet_id');
   document.getElementById('inputCard').style.display = 'block';
