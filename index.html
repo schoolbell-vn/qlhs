@@ -4418,8 +4418,6 @@ async function sha256Hash(text) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Hàm tổng hợp và gửi dữ liệu lên Google Sheets
-// Hàm tổng hợp và gửi dữ liệu lên Google Sheets
 async function syncDataForParents() {
   if (!loggedUser || loggedUser.role !== 'admin') {
     alert('⛔ Chỉ Bí thư / Admin mới có quyền đồng bộ dữ liệu này!');
@@ -4433,25 +4431,25 @@ async function syncDataForParents() {
   try {
     const records = computeHk1StudentRecords(); 
     const exportData = [];
-    exportData.push(["Hash_Key", "Diem_Ren_Luyen", "Xep_Loai", "Chi_Tiet_Loi"]);
+    // THÊM CỘT HỌ TÊN VÀO FILE XUẤT
+    exportData.push(["Hash_Key", "Ho_Ten", "Diem_Ren_Luyen", "Xep_Loai", "Chi_Tiet_Loi"]);
 
     for (let r of records) {
       const rawKey = String(r.id).trim().toLowerCase().replace(/\s/g, '');
       const hashedKey = await sha256Hash(rawKey); 
       const cleanDetails = r.details.length > 0 ? r.details.join(' | ').replace(/,/g, ' ') : "Tốt, Không có vi phạm nào.";
-      exportData.push([hashedKey, r.finalScore, r.rank, cleanDetails]);
+      // ĐẨY THÊM r.name VÀO MẢNG DỮ LIỆU
+      exportData.push([hashedKey, r.name, r.finalScore, r.rank, cleanDetails]);
     }
 
-    // Dùng mode: 'no-cors' để đánh lừa tường lửa của GitHub Pages, ép trình duyệt gửi dữ liệu đi mà không cần chờ đọc phản hồi
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', // <--- Lệnh quan trọng nhất để sửa lỗi Failed to fetch
+      mode: 'no-cors', 
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
     });
 
-    // Bỏ qua lệnh đọc kết quả response.json() để không bị chặn
-    alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu đã được cập nhật cho Phụ huynh.');
+    alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu (Bao gồm Tên Học Sinh) đã được cập nhật cho Phụ huynh.');
 
   } catch (error) {
     alert('❌ Lỗi kết nối: ' + error.message);
@@ -4460,6 +4458,7 @@ async function syncDataForParents() {
     btn.disabled = false;
   }
 }
+
 </script>
 <datalist id="studentDatalist"></datalist>
 </body>
