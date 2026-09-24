@@ -1192,6 +1192,7 @@
                 <th style="text-align:center;">📖 Sổ Đầu Bài</th>
                 <th style="text-align:center;">🚩 Cờ Đỏ</th>
                 <th style="text-align:center;">⚡ TNXK</th>
+                <th style="text-align:center;">🏫 BGH / BCH</th>
                 <th style="text-align:center;">👁️ Khách (Chỉ xem)</th>
               </tr>
             </thead>
@@ -1212,10 +1213,12 @@
             <option value="sdb">31 Tài khoản Sổ Đầu Bài</option>
             <option value="codo">31 Tài khoản Cờ Đỏ</option>
             <option value="tnxk">3 Tổ Trưởng TNXK Khối</option>
+            <option value="bch">Ban Giám Hiệu / BCH</option>
             <option value="admin">Ban Quản Trị (Admin)</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
-        </div>
+            <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
+            <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
+          </div>
       </div>
       <div class="card-body">
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
@@ -1329,7 +1332,8 @@
               </select>
             </div>
             <div class="form-group">
-              <button class="btn btn-primary" onclick="addNewRule()">➕ Thêm Tiêu Chí</button>
+              <button class="btn btn-primary" id="btnSaveRule" onclick="saveRuleConfig()">➕ Thêm / Lưu Tiêu Chí</button>
+              <button class="btn btn-outline" id="btnCancelEditRule" onclick="cancelEditRule()" style="display:none; margin-top:5px;">Hủy sửa</button>
             </div>
           </div>
         </div>
@@ -1479,7 +1483,9 @@ let TABS_CONFIG = JSON.parse(localStorage.getItem('yka_tabs_config_v1')) || {
   'sdb':   ['board', 'sdb', 'search', 'hk1', 'alerts', 'history'],
   'codo':  ['board', 'codo', 'search', 'hk1', 'review', 'alerts', 'history'],
   'tnxk':  ['board', 'tnxk', 'search', 'hk1', 'review', 'alerts', 'history'],
+  'bgh':   ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'],
   'guest': ['board', 'search', 'hk1', 'review', 'alerts', 'history']
+  
 };
 
 function renderTabsConfigMatrix() {
@@ -1493,6 +1499,7 @@ function renderTabsConfigMatrix() {
       <td style="text-align:center;"><input type="checkbox" id="chk_sdb_${tab.id}" ${TABS_CONFIG['sdb'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
       <td style="text-align:center;"><input type="checkbox" id="chk_codo_${tab.id}" ${TABS_CONFIG['codo'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
       <td style="text-align:center;"><input type="checkbox" id="chk_tnxk_${tab.id}" ${TABS_CONFIG['tnxk'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_bgh_${tab.id}" ${TABS_CONFIG['bgh'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
       <td style="text-align:center;"><input type="checkbox" id="chk_guest_${tab.id}" ${TABS_CONFIG['guest'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
     `;
     tbody.appendChild(tr);
@@ -1500,7 +1507,7 @@ function renderTabsConfigMatrix() {
 }
 
 async function saveTabsConfig() {
-  const roles = ['sdb', 'codo', 'tnxk', 'guest'];
+  const roles = ['sdb', 'codo', 'tnxk', 'guest', 'bgh'];
   roles.forEach(role => {
     TABS_CONFIG[role] = [];
     ALL_TABS.forEach(tab => {
@@ -1723,6 +1730,7 @@ function renderRulesConfigTable() {
       <td style="text-align:center; font-weight:bold; color:${r.point < 0 ? 'var(--danger)' : 'var(--success)'};">${r.point > 0 ? '+'+r.point : r.point} đ</td>
       <td style="text-align:center;">${groupBadge}</td>
       <td style="text-align:center;" class="no-print">
+        <button class="btn btn-outline btn-sm" onclick="editRule('${r.code}')">✏️ Sửa</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRule('${r.code}')">🗑️ Xóa</button>
       </td>
     `;
@@ -1731,31 +1739,79 @@ function renderRulesConfigTable() {
 }
 
 // Hàm 3: Chức năng Thêm tiêu chí mới
-function addNewRule() {
-  const code = document.getElementById('newRuleCode').value.trim().toUpperCase();
+// Khai báo biến toàn cục để lưu trạng thái đang sửa mã nào
+let editingRuleCode = null;
+
+// Hàm 3: Chức năng Thêm mới HOẶC Lưu chỉnh sửa tiêu chí
+function saveRuleConfig() {
+  const newCode = document.getElementById('newRuleCode').value.trim().toUpperCase();
   const name = document.getElementById('newRuleName').value.trim();
   const ptInput = parseFloat(document.getElementById('newRulePoint').value);
   const group = document.getElementById('newRuleGroup').value;
 
-  if (!code || !name || isNaN(ptInput)) {
+  if (!newCode || !name || isNaN(ptInput)) {
     alert("Vui lòng nhập đầy đủ Mã, Nội dung và Mức điểm!"); return;
-  }
-  if (RULES.find(r => r.code === code)) {
-    alert("Mã tiêu chí này đã tồn tại! Vui lòng chọn mã khác."); return;
   }
 
   // Tự động chuyển thành điểm âm nếu là Cờ đỏ / TNXK
   let finalPoint = Math.abs(ptInput);
   if (group === 'codo' || group === 'tnxk') finalPoint = -finalPoint;
 
-  RULES.push({ code: code, name: name, point: finalPoint, group: group, target: (group === 'bch' ? 'class' : '') });
+  if (editingRuleCode) {
+    // ĐANG Ở CHẾ ĐỘ SỬA
+    // Kiểm tra xem mã mới sửa đổi có bị trùng với một mã khác đã có sẵn không
+    if (newCode !== editingRuleCode && RULES.some(r => r.code === newCode)) {
+      alert(`Mã [${newCode}] đã tồn tại trong hệ thống! Vui lòng chọn mã khác.`);
+      return;
+    }
+
+    const idx = RULES.findIndex(r => r.code === editingRuleCode);
+    if (idx > -1) {
+      RULES[idx] = { code: newCode, name: name, point: finalPoint, group: group, target: (group === 'bch' ? 'class' : '') };
+    }
+    alert("✅ Đã cập nhật tiêu chí thành công!");
+    cancelEditRule(); // Hủy trạng thái sửa để quay về form thêm mới
+  } else {
+    // ĐANG Ở CHẾ ĐỘ THÊM MỚI
+    if (RULES.find(r => r.code === newCode)) {
+      alert("Mã tiêu chí này đã tồn tại! Vui lòng chọn mã khác."); return;
+    }
+    RULES.push({ code: newCode, name: name, point: finalPoint, group: group, target: (group === 'bch' ? 'class' : '') });
+    
+    // Xóa trắng form sau khi nhập
+    document.getElementById('newRuleCode').value = '';
+    document.getElementById('newRuleName').value = '';
+    document.getElementById('newRulePoint').value = '';
+  }
   
-  // Xóa trắng form sau khi nhập
+  renderRulesConfigTable();
+}
+
+// Hàm 4: Kích hoạt chế độ Sửa (Đổ dữ liệu lên form)
+function editRule(code) {
+  const r = RULES.find(x => x.code === code);
+  if (!r) return;
+
+  editingRuleCode = code;
+  document.getElementById('newRuleCode').value = r.code;
+  document.getElementById('newRuleCode').disabled = false; // BỎ KHÓA: Cho phép sửa mã
+  document.getElementById('newRuleName').value = r.name;
+  document.getElementById('newRulePoint').value = Math.abs(r.point); // Hiển thị số dương
+  document.getElementById('newRuleGroup').value = r.group;
+
+  document.getElementById('btnSaveRule').innerHTML = "💾 Lưu Thay Đổi";
+  document.getElementById('btnCancelEditRule').style.display = "inline-block";
+}
+
+// Hàm 5: Hủy chế độ sửa
+function cancelEditRule() {
+  editingRuleCode = null;
   document.getElementById('newRuleCode').value = '';
   document.getElementById('newRuleName').value = '';
   document.getElementById('newRulePoint').value = '';
-  
-  renderRulesConfigTable();
+
+  document.getElementById('btnSaveRule').innerHTML = "➕ Thêm / Lưu Tiêu Chí";
+  document.getElementById('btnCancelEditRule').style.display = "none";
 }
 
 // Hàm 4: Chức năng Xóa tiêu chí
@@ -3802,6 +3858,26 @@ function renderStudentSearchTable() {
 }
 
 // ==================== QUẢN LÝ 85 TÀI KHOẢN (ADMIN) ====================
+function addNewAccount() {
+  // Chèn 1 tài khoản rỗng lên đầu danh sách
+  systemUsers.unshift({
+    username: 'tk_moi_' + Math.floor(Math.random() * 1000),
+    pass: '123456',
+    name: 'Tên giáo viên / Cán bộ',
+    role: 'bgh',
+    scope: [],
+    sdbClass: null
+  });
+  renderAdminUsersTable(); // Vẽ lại bảng để hiện dòng mới lên đầu
+}
+// Hàm xóa tài khoản (Tránh trường hợp lỡ bấm thêm nhầm)
+function deleteUserAccount(idx) {
+  if(confirm(`Bạn có chắc muốn xóa tài khoản [${systemUsers[idx].username}] khỏi hệ thống?`)) {
+    systemUsers.splice(idx, 1);
+    renderAdminUsersTable(); // Cập nhật lại giao diện
+    alert("Đã xóa! Nhớ bấm 'Lưu Thiết Lập Tài Khoản' để hệ thống ghi nhớ.");
+  }
+}
 function renderAdminUsersTable() {
   const roleFilter = document.getElementById('userFilterRole') ? document.getElementById('userFilterRole').value : 'ALL';
   const tbody = document.getElementById('userAccountsTableBody');
@@ -3830,6 +3906,7 @@ function renderAdminUsersTable() {
           <option value="sdb" ${u.role === 'sdb' ? 'selected' : ''}>📖 Sổ Đầu Bài</option>
           <option value="codo" ${u.role === 'codo' ? 'selected' : ''}>🚩 Cờ Đỏ</option>
           <option value="tnxk" ${u.role === 'tnxk' ? 'selected' : ''}>⚡ Tổ TNXK</option>
+          <option value="bgh" ${u.role === 'bgh' ? 'selected' : ''}>🏫 BGH / BCH</option>
           <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>🔒 Khóa (Khách)</option>
         </select>
       </td>
@@ -3838,6 +3915,7 @@ function renderAdminUsersTable() {
       </td>
       <td style="text-align:center;">
         <button class="btn btn-outline btn-sm" onclick="resetUserPass(${realIdx})">Reset</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteUserAccount(${realIdx})" title="Xóa tài khoản">🗑️</button> <!-- Đề xuất thêm nút xóa -->
       </td>
     `;
     tbody.appendChild(tr);
@@ -3982,8 +4060,6 @@ function exportStudentViolationsCSV() {
   document.body.removeChild(a);
 }
 
-
-// ==================== QUẢN LÝ HỌC SINH ====================
 // ==================== QUẢN LÝ HỌC SINH ====================
 function renderStudentManagementTable() {
   const sel = document.getElementById('manageStudentClassFilter');
