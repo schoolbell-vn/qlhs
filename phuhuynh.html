@@ -22,7 +22,6 @@
   .container { max-width: 480px; width: 100%; margin-top: 1rem; }
   
   .header { text-align: center; margin-bottom: 2rem; }
-  /* Đã Tăng kích thước Logo tại đây */
   .header img { width: 120px; height: 120px; margin-bottom: 1rem; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.15); object-fit: cover; }
   .header h1 { font-size: 1.4rem; color: var(--primary); font-weight: 800; margin-bottom: 0.35rem; }
   .header p { font-size: 0.95rem; color: #64748b; }
@@ -38,7 +37,6 @@
   
   #resultBox { display: none; margin-top: 1.5rem; padding: 1.5rem; border-radius: 16px; background: #ffffff; border: 2px solid #bfdbfe; box-shadow: 0 10px 25px rgba(30,58,138,0.08); }
   
-  /* Khung hiển thị Tên Học Sinh */
   .student-name-box { background: var(--primary); color: white; padding: 1rem; border-radius: 12px; text-align: center; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(30,58,138,0.2); }
   .student-name-label { font-size: 0.8rem; text-transform: uppercase; opacity: 0.9; margin-bottom: 0.3rem;}
   .student-name-val { font-size: 1.3rem; font-weight: 800; }
@@ -76,7 +74,6 @@
   </div>
 
   <div id="resultBox">
-    <!-- Thêm Tên học sinh -->
     <div class="student-name-box">
       <div class="student-name-label">Học sinh</div>
       <div class="student-name-val" id="resName">--</div>
@@ -99,13 +96,13 @@
 
   <div class="install-hint" id="installHint">
     <strong>💡 Mẹo cho Phụ huynh:</strong> Để không phải nhập mã vào các lần sau, ông bà/bố mẹ hãy tải ứng dụng này ra màn hình chính điện thoại bằng cách: <br><br>
-    - <strong>Dùng iPhone (Safari):</strong> Bấm biểu tượng <b>[Chia sẻ]</b> (hình ô vuông có mũi tên lên) ở thanh dưới cùng 👉 Chọn <b>[Thêm vào MH chính]</b>.<br>
+    - <strong>Dùng iPhone (Safari):</strong> Bấm biểu tượng <b>[Chia sẻ]</b> ở thanh dưới cùng 👉 Chọn <b>[Thêm vào MH chính]</b>.<br>
     - <strong>Dùng Android (Chrome/Zalo):</strong> Bấm biểu tượng <b>[3 chấm]</b> ở góc trên phải 👉 Chọn <b>[Thêm vào Màn hình chính]</b>.
   </div>
 </div>
 
 <script>
-// Thầy dán lại URL Apps Script (đã update version mới nhất) vào đây
+// Thầy dán lại URL Apps Script (Phiên bản mới nhất đã Deploy) vào đây
 const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
 async function sha256Hash(text) {
@@ -130,12 +127,69 @@ function handleManualSearch(e) {
   executeSearch(id);
 }
 
-async function executeSearch(id) {
+// HÀM HỨNG DỮ LIỆU TỪ MÁY CHỦ (BẮT BUỘC PHẢI LÀ BIẾN TOÀN CỤC)
+window.processParentData = function(result) {
   const btn = document.getElementById('btnSubmit');
   const resultBox = document.getElementById('resultBox');
   const inputCard = document.getElementById('inputCard');
   const hint = document.getElementById('installHint');
+  
+  btn.innerHTML = "Tra Cứu Kết Quả";
+  btn.disabled = false;
 
+  // Dọn dẹp thẻ script cũ cho nhẹ web
+  const oldScript = document.getElementById('yka-jsonp');
+  if (oldScript) oldScript.remove();
+
+  if (result.status === "error") {
+    alert("Lỗi: " + result.message);
+    return;
+  }
+  
+  if (result.status === "not_found") {
+    alert("❌ Mã Học Sinh không chính xác hoặc chưa có dữ liệu trong tuần này.");
+    inputCard.style.display = 'block';
+    resultBox.style.display = 'none';
+    if(hint) hint.style.display = 'block';
+    return;
+  }
+
+  if (result.status === "success" && result.data) {
+      const id = document.getElementById('studentId').value.trim();
+      localStorage.setItem('yka_saved_moet_id', id);
+      
+      const cols = result.data;
+      let studentName, score, rank, rawDetails;
+
+      if (cols.length >= 5) {
+          studentName = cols[1];
+          score = cols[2];
+          rank = cols[3];
+          rawDetails = String(cols[4]).trim();
+      } else {
+          studentName = "Đang cập nhật...";
+          score = cols[1];
+          rank = cols[2];
+          rawDetails = String(cols[3]).trim();
+      }
+
+      document.getElementById('resName').textContent = studentName || "Không xác định";
+      document.getElementById('resScore').textContent = score + " điểm";
+      
+      const rankEl = document.getElementById('resRank');
+      rankEl.textContent = rank;
+      rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
+      
+      document.getElementById('resDetails').innerHTML = rawDetails.split('|').join('<br>• ');
+      
+      resultBox.style.display = 'block';
+      inputCard.style.display = 'none'; 
+      if(hint) hint.style.display = 'none';
+  }
+};
+
+async function executeSearch(id) {
+  const btn = document.getElementById('btnSubmit');
   btn.innerHTML = "⏳ Đang truy xuất dữ liệu...";
   btn.disabled = true;
 
@@ -143,46 +197,23 @@ async function executeSearch(id) {
     const rawInput = String(id).trim().toLowerCase().replace(/\s/g, '');
     const userHash = await sha256Hash(rawInput);
 
-    // THUẬT TOÁN GET (CHỐNG LỖI FAILED TO FETCH CORS TRÊN GITHUB PAGES)
-    const fetchUrl = MASTER_APP_SCRIPT_URL + "?action=search_phuhuynh&hash=" + userHash;
-    const response = await fetch(fetchUrl, { redirect: "follow" });
+    // THUẬT TOÁN JSONP: TẠO THẺ SCRIPT ĐỂ TẢI DỮ LIỆU THAY VÌ DÙNG LỆNH FETCH
+    const script = document.createElement('script');
+    script.id = 'yka-jsonp';
+    script.src = MASTER_APP_SCRIPT_URL + "?action=search_phuhuynh&hash=" + userHash + "&callback=processParentData";
     
-    const result = await response.json();
+    // Nếu rớt mạng hoặc lỗi tải kịch bản
+    script.onerror = function() {
+      alert("⚠️ Lỗi kết nối mạng. Không thể liên lạc với máy chủ.");
+      btn.innerHTML = "Tra Cứu Kết Quả";
+      btn.disabled = false;
+    };
 
-    if (result.status === "error") throw new Error(result.message);
-    
-    if (result.status === "not_found") {
-      alert("❌ Mã Học Sinh không chính xác hoặc chưa có dữ liệu trong tuần này.");
-      inputCard.style.display = 'block';
-      resultBox.style.display = 'none';
-      if(hint) hint.style.display = 'block';
-      return;
-    }
-
-    if (result.status === "success" && result.data) {
-        localStorage.setItem('yka_saved_moet_id', id);
-        
-        const cols = result.data;
-        // cols[0] = Hash, cols[1] = Tên, cols[2] = Điểm, cols[3] = Xếp loại, cols[4] = Chi tiết
-        document.getElementById('resName').textContent = cols[1] || "Không xác định";
-        document.getElementById('resScore').textContent = cols[2] + " điểm";
-        
-        const rank = cols[3];
-        const rankEl = document.getElementById('resRank');
-        rankEl.textContent = rank;
-        rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
-        
-        const rawDetails = String(cols[4]).trim();
-        document.getElementById('resDetails').innerHTML = rawDetails.split('|').join('<br>• ');
-        
-        resultBox.style.display = 'block';
-        inputCard.style.display = 'none'; 
-        if(hint) hint.style.display = 'none';
-    }
+    // Gắn script vào web để nó tự chạy hàm processParentData
+    document.body.appendChild(script);
 
   } catch (error) {
-    alert("⚠️ Không thể tải dữ liệu lúc này. Vui lòng thử lại sau.\nLỗi: " + error.message);
-  } finally {
+    alert("⚠️ Lỗi thiết bị: " + error.message);
     btn.innerHTML = "Tra Cứu Kết Quả";
     btn.disabled = false;
   }
