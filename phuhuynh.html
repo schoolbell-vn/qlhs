@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sổ LLĐT YKA">
+
+<!-- Đã thay Icon trình duyệt bằng Logo Yên Khánh A -->
 <link rel="apple-touch-icon" href="./logo-yka.jpg">
 <link rel="icon" type="image/jpeg" href="./logo-yka.jpg">
 
@@ -20,7 +22,7 @@
   body { background-color: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 1rem; min-height: 100vh; }
   .container { max-width: 480px; width: 100%; margin-top: 2rem; }
   .header { text-align: center; margin-bottom: 2rem; }
-  .header img { width: 60px; height: 60px; margin-bottom: 1rem; }
+  .header img { width: 75px; height: 75px; margin-bottom: 1rem; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
   .header h1 { font-size: 1.3rem; color: var(--primary); font-weight: 800; margin-bottom: 0.35rem; }
   .header p { font-size: 0.9rem; color: #64748b; }
   
@@ -51,10 +53,11 @@
 
 <div class="container">
   <div class="header">
-  <img src="./logo-yka.jpg" alt="Logo THPT Yên Khánh A" style="border-radius: 100%;">
-  <h1>SỔ LIÊN LẠC ĐIỆN TỬ YKA</h1>
-  <p>Tra cứu Điểm Rèn luyện & Kỷ luật</p>
-</div>
+    <!-- Đã thay Logo lớn giữa màn hình -->
+    <img src="./logo-yka.jpg" alt="Logo YKA">
+    <h1>SỔ LIÊN LẠC ĐIỆN TỬ YKA</h1>
+    <p>Tra cứu Điểm Rèn luyện & Kỷ luật</p>
+  </div>
 
   <div class="card" id="inputCard">
     <form id="searchForm" onsubmit="handleManualSearch(event)">
@@ -90,7 +93,7 @@
 </div>
 
 <script>
-// THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT VÀO ĐÂY (Giống hệt link bên app Giám thị)
+// Thầy dán lại URL Apps Script (đã update version 10) vào đây nhé
 const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
 async function sha256Hash(text) {
@@ -128,26 +131,33 @@ async function executeSearch(id) {
     const rawInput = String(id).trim().toLowerCase().replace(/\s/g, '');
     const userHash = await sha256Hash(rawInput);
 
-    // DÙNG CÙNG PHƯƠNG THỨC FETCH VỚI APP GIÁM THỊ (THÊM action=get_phuhuynh)
-    const response = await fetch(MASTER_APP_SCRIPT_URL + "?action=get_phuhuynh&t=" + new Date().getTime(), { redirect: "follow" });
+    // THUẬT TOÁN MỚI: CHUYỂN QUA DÙNG LỆNH POST VÀ TÌM KIẾM TRÊN SERVER ĐỂ CHỐNG CORS
+    const response = await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "search_phuhuynh", hash: userHash })
+    });
+    
     const result = await response.json();
 
-    if (result.status !== "success") throw new Error("Chưa có dữ liệu đồng bộ.");
+    if (result.status === "error") throw new Error(result.message);
     
-    const rows = result.data;
-    let found = false;
+    if (result.status === "not_found") {
+      alert("❌ Mã Học Sinh không chính xác hoặc chưa có dữ liệu trong tuần này.");
+      inputCard.style.display = 'block';
+      resultBox.style.display = 'none';
+      if(hint) hint.style.display = 'block';
+      return;
+    }
 
-    // Quét tìm mã băm trong dữ liệu mảng
-    for (let i = 1; i < rows.length; i++) {
-      const cols = rows[i];
-      if (cols.length >= 4 && cols[0].trim() === userHash) {
-        found = true;
-        
+    // Hiển thị kết quả lấy về thành công
+    if (result.status === "success" && result.data) {
         localStorage.setItem('yka_saved_moet_id', id);
-
-        document.getElementById('resScore').textContent = cols[1].trim() + " điểm";
         
-        const rank = cols[2].trim();
+        const cols = result.data;
+        document.getElementById('resScore').textContent = cols[1] + " điểm";
+        
+        const rank = cols[2];
         const rankEl = document.getElementById('resRank');
         rankEl.textContent = rank;
         rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
@@ -158,15 +168,6 @@ async function executeSearch(id) {
         resultBox.style.display = 'block';
         inputCard.style.display = 'none'; 
         if(hint) hint.style.display = 'none';
-        break;
-      }
-    }
-
-    if (!found) {
-      alert("❌ Mã Học Sinh không chính xác hoặc chưa có dữ liệu trong tuần này.");
-      inputCard.style.display = 'block';
-      resultBox.style.display = 'none';
-      if(hint) hint.style.display = 'block';
     }
 
   } catch (error) {
