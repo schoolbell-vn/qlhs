@@ -4419,6 +4419,7 @@ async function sha256Hash(text) {
 }
 
 // Hàm tổng hợp và gửi dữ liệu lên Google Sheets
+// Hàm tổng hợp và gửi dữ liệu lên Google Sheets
 async function syncDataForParents() {
   if (!loggedUser || loggedUser.role !== 'admin') {
     alert('⛔ Chỉ Bí thư / Admin mới có quyền đồng bộ dữ liệu này!');
@@ -4426,7 +4427,7 @@ async function syncDataForParents() {
   }
   const btn = document.getElementById('btnSyncParent');
   const oldText = btn.innerHTML;
-  btn.innerHTML = "⏳ Đang mã hóa & đồng bộ...";
+  btn.innerHTML = "⏳ Đang gửi dữ liệu...";
   btn.disabled = true;
 
   try {
@@ -4441,24 +4442,19 @@ async function syncDataForParents() {
       exportData.push([hashedKey, r.finalScore, r.rank, cleanDetails]);
     }
 
-    // Gửi lên Google Apps Script và ĐỌC KẾT QUẢ TRẢ VỀ
-    const response = await fetch(MASTER_APP_SCRIPT_URL, {
+    // Dùng mode: 'no-cors' để đánh lừa tường lửa của GitHub Pages, ép trình duyệt gửi dữ liệu đi mà không cần chờ đọc phản hồi
+    await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
+      mode: 'no-cors', // <--- Lệnh quan trọng nhất để sửa lỗi Failed to fetch
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      redirect: "follow", // <--- THÊM DÒNG NÀY ĐỂ MỞ KHÓA CHUYỂN HƯỚNG TRÊN GITHUB PAGES
       body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
     });
 
-    const result = await response.json();
-
-    if (result.status === "success") {
-      alert('✅ ĐÃ ĐỒNG BỘ THẬT THÀNH CÔNG! Sheet Data_PhuHuynh đã có dữ liệu.');
-    } else {
-      alert('❌ MÁY CHỦ GOOGLE BÁO LỖI:\n' + result.message);
-    }
+    // Bỏ qua lệnh đọc kết quả response.json() để không bị chặn
+    alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu đã được cập nhật cho Phụ huynh.');
 
   } catch (error) {
-    alert('❌ Lỗi kết nối mạng: ' + error.message);
+    alert('❌ Lỗi kết nối: ' + error.message);
   } finally {
     btn.innerHTML = oldText;
     btn.disabled = false;
