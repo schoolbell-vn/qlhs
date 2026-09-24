@@ -967,6 +967,7 @@
           <input type="date" id="searchFilterFrom" onchange="renderStudentSearchTable()" title="Từ ngày">
           <input type="date" id="searchFilterTo" onchange="renderStudentSearchTable()" title="Đến ngày">
           <button class="btn btn-success btn-sm" onclick="exportStudentViolationsCSV()">📥 Xuất Excel (Tuần/Kỳ)</button>
+          <button class="btn btn-sm" style="background:#6d28d9; color:white;" onclick="syncDataForParents()" id="btnSyncParent">☁️ Đồng bộ Cổng Phụ Huynh</button>
         </div>
       </div>
       <div class="card-body">
@@ -4407,6 +4408,60 @@ function finalizeWeek() {
 
     alert(`✅ Đã chốt thi đua [${weekName}] thành công! Bảng xếp hạng đã được làm mới.`);
     location.reload(); // Tải lại toàn bộ hệ thống
+}
+// Thuật toán băm SHA-256 (Mã hóa một chiều không thể dịch ngược)
+async function sha256Hash(text) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Hàm tổng hợp và gửi dữ liệu lên Google Sheets
+async function syncDataForParents() {
+  if (!loggedUser || loggedUser.role !== 'admin') {
+    alert('⛔ Chỉ Bí thư / Admin mới có quyền đồng bộ dữ liệu này!');
+    return;
+  }
+  const btn = document.getElementById('btnSyncParent');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = "⏳ Đang mã hóa & đồng bộ...";
+  btn.disabled = true;
+
+  try {
+    const records = computeHk1StudentRecords(); 
+    const exportData = [];
+    exportData.push(["Hash_Key", "Diem_Ren_Luyen", "Xep_Loai", "Chi_Tiet_Loi"]);
+
+    for (let r of records) {
+      const rawKey = String(r.id).trim().toLowerCase().replace(/\s/g, '');
+      const hashedKey = await sha256Hash(rawKey); 
+      const cleanDetails = r.details.length > 0 ? r.details.join(' | ').replace(/,/g, ' ') : "Tốt, Không có vi phạm nào.";
+      exportData.push([hashedKey, r.finalScore, r.rank, cleanDetails]);
+    }
+
+    // Gửi lên Google Apps Script và ĐỌC KẾT QUẢ TRẢ VỀ
+    const response = await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      alert('✅ ĐÃ ĐỒNG BỘ THẬT THÀNH CÔNG! Sheet Data_PhuHuynh đã có dữ liệu.');
+    } else {
+      alert('❌ MÁY CHỦ GOOGLE BÁO LỖI:\n' + result.message);
+    }
+
+  } catch (error) {
+    alert('❌ Lỗi kết nối mạng: ' + error.message);
+  } finally {
+    btn.innerHTML = oldText;
+    btn.disabled = false;
+  }
 }
 </script>
 <datalist id="studentDatalist"></datalist>
