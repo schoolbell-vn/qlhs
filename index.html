@@ -4445,6 +4445,7 @@ async function syncDataForParents() {
     const response = await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: "follow", // <--- THÊM DÒNG NÀY ĐỂ MỞ KHÓA CHUYỂN HƯỚNG TRÊN GITHUB PAGES
       body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
     });
 
