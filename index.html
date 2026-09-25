@@ -4431,15 +4431,24 @@ async function syncDataForParents() {
   try {
     const records = computeHk1StudentRecords(); 
     const exportData = [];
-    // THÊM CỘT HỌ TÊN VÀO FILE XUẤT
-    exportData.push(["Hash_Key", "Ho_Ten", "Diem_Ren_Luyen", "Xep_Loai", "Chi_Tiet_Loi"]);
+    // Bổ sung 2 cột: Nghi_Co_Phep và Nghi_Khong_Phep (Tổng cộng 7 cột)
+    exportData.push(["Hash_Key", "Ho_Ten", "Diem_Ren_Luyen", "Xep_Loai", "Chi_Tiet_Loi", "Nghi_Co_Phep", "Nghi_Khong_Phep"]);
 
     for (let r of records) {
       const rawKey = String(r.id).trim().toLowerCase().replace(/\s/g, '');
       const hashedKey = await sha256Hash(rawKey); 
       const cleanDetails = r.details.length > 0 ? r.details.join(' | ').replace(/,/g, ' ') : "Tốt, Không có vi phạm nào.";
-      // ĐẨY THÊM r.name VÀO MẢNG DỮ LIỆU
-      exportData.push([hashedKey, r.name, r.finalScore, r.rank, cleanDetails]);
+      
+      // Đẩy thêm số buổi nghỉ có phép và không phép vào mảng
+      exportData.push([
+        hashedKey, 
+        r.name, 
+        r.finalScore, 
+        r.rank, 
+        cleanDetails, 
+        r.excusedAbsences || 0, 
+        r.unexcusedAbsences || 0
+      ]);
     }
 
     await fetch(MASTER_APP_SCRIPT_URL, {
@@ -4449,7 +4458,7 @@ async function syncDataForParents() {
       body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
     });
 
-    alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu (Bao gồm Tên Học Sinh) đã được cập nhật cho Phụ huynh.');
+    alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu (kèm số buổi nghỉ học) đã được cập nhật cho Phụ huynh.');
 
   } catch (error) {
     alert('❌ Lỗi kết nối: ' + error.message);
