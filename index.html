@@ -428,7 +428,7 @@
     </button>
     <button class="tab-btn" id="tabBtn-alerts" onclick="switchTab('alerts')">🚨 Báo Động Đỏ</button>
     <button class="tab-btn" id="tabBtn-history" onclick="switchTab('history')">📚 Lịch Sử Chốt Tuần</button>
-    <button class="tab-btn" id="tabBtn-admin-users" onclick="switchTab('admin-users')">👥 Quản Lý 85 Tài Khoản</button>
+    <button class="tab-btn" id="tabBtn-admin-users" onclick="switchTab('admin-users')">👥 Quản Lý Tài Khoản</button>
     <button class="tab-btn" id="tabBtn-rules-config" onclick="switchTab('rules-config')">⚙️ Cấu Hình Tiêu Chí Điểm</button>
     <button class="tab-btn" id="tabBtn-students" onclick="switchTab('students')">🧑‍🎓 Quản Lý Học Sinh</button>
   </nav>
@@ -1175,7 +1175,7 @@
     </div>
   </div>
 
-  <!-- TAB 7: QUẢN LÝ 85 TÀI KHOẢN (36 CỜ ĐỎ, 36 SĐB, 12 TỔ TRƯỞNG TNXK, ADMIN) -->
+  <!-- TAB 7: QUẢN LÝ TÀI KHOẢN (36 CỜ ĐỎ, 36 SĐB, 12 TỔ TRƯỞNG TNXK, ADMIN) -->
   <div id="tab-admin-users" class="tab-content">
     <!-- BẢNG ĐIỀU KHIỂN MA TRẬN PHÂN QUYỀN THẺ -->
     <div class="card">
@@ -1209,7 +1209,7 @@
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>👥 DANH SÁCH 85 TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 chi đoàn</h2>
+        <h2>👥 DANH SÁCH TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 chi đoàn</h2>
         <div style="display:flex; gap:0.5rem;" class="no-print">
           <select id="userFilterRole" onchange="renderAdminUsersTable()" style="font-size:0.82rem; padding:0.3rem 0.6rem;">
             <option value="ALL">Tất cả  khoản</option>
@@ -1252,7 +1252,7 @@
       <div class="card-body">
         <div style="background:#fee2e2; border:1px solid #fca5a5; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.85rem; color:#991b1b;">
           <strong>Chức năng Dọn dẹp cuối năm:</strong> Khi kết thúc năm học, đồng chí sử dụng chức năng này để <strong>Xóa sạch toàn bộ dữ liệu chấm thi đua</strong> (Biên bản Cờ đỏ, TNXK, dữ liệu Sổ đầu bài, QĐ Khen thưởng) của năm cũ. Hệ thống sẽ đưa mọi điểm số về mốc 0 để sẵn sàng cho năm học mới.<br>
-          <em>* Lưu ý: Danh sách học sinh và thông tin 85 Tài khoản đăng nhập vẫn được giữ nguyên không bị ảnh hưởng.</em>
+          <em>* Lưu ý: Danh sách học sinh và thông tin Tài khoản đăng nhập vẫn được giữ nguyên không bị ảnh hưởng.</em>
         </div>
         <button class="btn btn-danger" onclick="resetSystemData()" style="padding: 0.65rem 1.5rem; font-size: 0.95rem;">🔄 Làm Mới Dữ Liệu & Bắt Đầu Năm Học Mới</button>
       </div>
@@ -1611,13 +1611,17 @@ async function fetchDatabaseFromCloud() {
       sdbFullData = db.sdb;
       localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
     }
-    
-    // Nạp Danh sách 85 Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận, tránh lỗi mất tài khoản Cờ đỏ/SĐB)
+    // Nạp Lịch sử chốt tuần từ Đám mây
+    if (db.history && Array.isArray(db.history)) {
+      weeklyHistory = db.history;
+      localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+    }
+    // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận, tránh lỗi mất tài khoản Cờ đỏ/SĐB)
     if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       systemUsers = db.users;
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
     } else {
-      // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ 85 tài khoản và đẩy lên Đám mây
+      // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ tài khoản và đẩy lên Đám mây
       if (!systemUsers || systemUsers.length <= 1) {
         systemUsers = generateDefaultUsers();
         updateUsersLocalAndCloud();
@@ -1884,7 +1888,7 @@ function deleteRule(code) {
     renderRulesConfigTable();
   }
 }
-// 3. TẠO HỆ THỐNG 85 TÀI KHOẢN TỰ ĐỘNG CHO 36 CHI ĐOÀN
+// 3. TẠO HỆ THỐNG TÀI KHOẢN TỰ ĐỘNG CHO 36 CHI ĐOÀN
 function generateDefaultUsers() {
   // Tạo sẵn danh sách 36 lớp cố định để không bị phụ thuộc mạng
   const fixedClasses = [];
@@ -2302,11 +2306,12 @@ function computeHk1StudentRecords() {
 
     if (v.points < 0) {
       rec.totalPenalties += Math.abs(v.points);
-      if (v.code === 'A13' || v.code === 'A14' || v.code === 'A15' || v.code === 'A16' || v.code === 'A17') {
-        rec.trafficViolations += 1;
-      } else {
-        rec.disciplineViolations += 1;
-      }
+      // Cứ mã nào bắt đầu bằng chữ B (Nhóm TNXK) hoặc có chữ "xe", "mũ" thì tính vào cột ATGT
+    if (v.code.startsWith('B') || v.name.toLowerCase().includes('xe') || v.name.toLowerCase().includes('mũ')) {
+      rec.trafficViolations += 1;
+    } else {
+      rec.disciplineViolations += 1;
+    }
     } else {
       rec.totalBonuses += v.points;
     }
@@ -2594,7 +2599,13 @@ function exportBchBonusCSV() {
 
 // ==================== TỔNG KẾT THI ĐUA TẬP THỂ (HK1 & CẢ NĂM) ====================
 
-function getSimulatedWeeklyHistory(classId, totalWeeks) { return []; }
+function getSimulatedWeeklyHistory(classId, totalWeeks) {
+  // Lấy kết quả xếp loại thực tế của lớp từ các tuần đã bấm Chốt trong weeklyHistory
+  return weeklyHistory.slice(0, totalWeeks - 1).map(w => {
+    const found = (w.data || []).find(c => c.id === classId);
+    return found ? found.rankLabel : 'Tốt';
+  });
+}
 
 function calculateHk1ClassScores() {
   const term = document.getElementById('hk1ClassFilterTerm') ? document.getElementById('hk1ClassFilterTerm').value : 'HK1';
@@ -4367,7 +4378,10 @@ function resetSystemData() {
       };
     });
     updateSdbLocalAndCloud();
-
+    weeklyHistory = [];
+    localStorage.removeItem('yka_history_v1');
+    if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", []);
+    
     alert('✅ ĐÃ LÀM MỚI DỮ LIỆU THÀNH CÔNG!\nHệ thống đã dọn dẹp sạch sẽ điểm thi đua và sẵn sàng cho Năm học mới.');
     location.reload();
   } else if (confirmCode !== null) {
