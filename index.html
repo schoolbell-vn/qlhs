@@ -1409,17 +1409,18 @@
     </div>
   </div>
 
-  <!-- TAB: LỊCH SỬ CHỐT TUẦN -->
+ <!-- TAB: LỊCH SỬ CHỐT TUẦN & THÁNG -->
   <div id="tab-history" class="tab-content">
     <div class="card">
       <div class="card-header">
-        <h2>📚 LỊCH SỬ BẢNG XẾP HẠNG CÁC TUẦN</h2>
-        <button class="btn btn-danger btn-sm no-print" id="btnFinalizeWeek" onclick="finalizeWeek()" style="display:none;">🔒 Admin: Chốt Điểm Tuần Này</button>
+        <h2>📚 LỊCH SỬ BẢNG XẾP HẠNG TUẦN & TỔNG KẾT THÁNG</h2>
+        <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" id="btnFinalizeMonth" onclick="finalizeMonth()" style="display:none;">📆 Admin: Chốt Tổng Kết Tháng</button>
+          <button class="btn btn-danger btn-sm" id="btnFinalizeWeek" onclick="finalizeWeek()" style="display:none;">🔒 Admin: Chốt Điểm Tuần Này</button>
+        </div>
       </div>
       <div class="card-body">
-        <div id="historyContainer">
-           <!-- Các bảng xếp hạng cũ sẽ hiện ở đây -->
-        </div>
+        <div id="historyContainer"></div>
       </div>
     </div>
   </div>
@@ -2192,10 +2193,11 @@ function setupUserSessionUI() {
   const bannerDesc = document.getElementById('scopeBannerDesc');
   const bannerTag = document.getElementById('scopeBannerTag');
   const scopeBanner = document.getElementById('scopeBanner');
-  
   const btnFinalizeWeek = document.getElementById('btnFinalizeWeek');
-  if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'none'; // Mặc định ẩn nút chốt điểm
-
+  const btnFinalizeMonth = document.getElementById('btnFinalizeMonth');
+  if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'none';
+  if (btnFinalizeMonth) btnFinalizeMonth.style.display = 'none';
+  
   if (myRole === 'admin') {
     roleLabel.textContent = 'BÍ THƯ / ADMIN (TOÀN QUYỀN)';
     bannerTitle.textContent = 'Quyền Quản Trị: Thường trực Đoàn Trường & Ban Thi Đua';
@@ -2203,6 +2205,7 @@ function setupUserSessionUI() {
     bannerTag.textContent = 'ADMIN';
     scopeBanner.className = 'scope-banner';
     if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'inline-block'; // Bật nút chốt điểm cho Admin
+    if (btnFinalizeMonth) btnFinalizeMonth.style.display = 'inline-block';
   } else if (myRole === 'sdb') {
     roleLabel.textContent = `CÁN BỘ SĐB CHI ĐOÀN ${loggedUser.sdbClass}`;
     bannerTitle.textContent = `Tài khoản Sổ Đầu Bài: Chi đoàn ${loggedUser.sdbClass}`;
@@ -2597,11 +2600,11 @@ function exportBchBonusCSV() {
 // ==================== TỔNG KẾT THI ĐUA TẬP THỂ (HK1 & CẢ NĂM) ====================
 
 function getSimulatedWeeklyHistory(classId, totalWeeks) {
-  const pastRanks = weeklyHistory.slice(0, totalWeeks - 1).map(w => {
+  const onlyWeeks = weeklyHistory.filter(h => h.type !== 'MONTH');
+  const pastRanks = onlyWeeks.slice(0, totalWeeks - 1).map(w => {
     const found = (w.data || []).find(c => c.id === classId);
     return found ? found.rankLabel : 'Tốt';
   });
-  // Các tuần chưa học tới trong tương lai mặc định tính là 'Tốt' để không bị rớt hạng oan đầu kỳ
   while (pastRanks.length < totalWeeks - 1) {
     pastRanks.push('Tốt');
   }
@@ -4462,34 +4465,57 @@ function renderAlerts() {
   if(!hasClassAlert) tbodyClass.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tuần này không có chi đoàn nào bị báo động đỏ. 🎉</td></tr>';
 }
 
-// ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN =================
+// ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN & THÁNG =================
 let weeklyHistory = JSON.parse(localStorage.getItem('yka_history_v1')) || [];
 let selectedHistoryIndex = 0;
+let currentHistoryMode = 'WEEK'; // 'WEEK' (Xem tuần) hoặc 'MONTH' (Xem tháng)
+
+function switchHistoryMode(mode) {
+  currentHistoryMode = mode;
+  selectedHistoryIndex = 0;
+  renderHistoryTable();
+}
 
 function renderHistoryTable() {
   const container = document.getElementById('historyContainer');
   if (!container) return;
   container.innerHTML = '';
 
-  if (!weeklyHistory || weeklyHistory.length === 0) {
-    container.innerHTML = '<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu lịch sử tuần nào được chốt.</p>';
+  // Tách danh sách Tuần và danh sách Tháng từ kho lưu trữ chung (đồng bộ tự động lên Cloud)
+  const weekList = weeklyHistory.map((item, idx) => ({ ...item, origIdx: idx })).filter(h => h.type !== 'MONTH').reverse();
+  const monthList = weeklyHistory.map((item, idx) => ({ ...item, origIdx: idx })).filter(h => h.type === 'MONTH').reverse();
+
+  const activeList = currentHistoryMode === 'WEEK' ? weekList : monthList;
+  if (selectedHistoryIndex >= activeList.length) selectedHistoryIndex = 0;
+
+  // Thanh chuyển đổi chế độ Xem Tuần / Xem Tháng
+  let modeTabsHtml = `
+    <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:2px solid var(--border-light); padding-bottom:0.75rem;">
+      <button class="btn btn-sm ${currentHistoryMode === 'WEEK' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('WEEK')" style="padding:0.5rem 1rem;">
+        📅 Lịch Sử Từng Tuần (${weekList.length})
+      </button>
+      <button class="btn btn-sm ${currentHistoryMode === 'MONTH' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('MONTH')" style="padding:0.5rem 1rem;">
+        📆 Xếp Hạng Tháng (${monthList.length})
+      </button>
+    </div>
+  `;
+
+  if (activeList.length === 0) {
+    container.innerHTML = modeTabsHtml + `<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu ${currentHistoryMode === 'WEEK' ? 'tuần' : 'tháng'} nào được chốt.</p>`;
     return;
   }
 
-  const reversedHistory = weeklyHistory.slice().reverse();
-  if (selectedHistoryIndex >= reversedHistory.length) selectedHistoryIndex = 0;
+  const currentObj = activeList[selectedHistoryIndex];
+  const originalIndex = currentObj.origIdx;
 
-  const currentWeekObj = reversedHistory[selectedHistoryIndex];
-  const originalIndex = weeklyHistory.length - 1 - selectedHistoryIndex;
-
-  let optionsHtml = reversedHistory.map((h, idx) => 
-    `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>📅 ${h.week} (Chốt: ${h.date})</option>`
+  let optionsHtml = activeList.map((h, idx) => 
+    `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>${currentHistoryMode === 'WEEK' ? '📅' : '📆'} ${h.week} (Chốt: ${h.date})</option>`
   ).join('');
 
-  container.innerHTML = `
+  container.innerHTML = modeTabsHtml + `
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; background:#f8fafc; padding:1rem; border-radius:10px; border:1px solid var(--border); margin-bottom:1rem;">
       <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; flex:1;">
-        <label style="font-weight:700; color:var(--primary); white-space:nowrap;">Chọn tuần xem:</label>
+        <label style="font-weight:700; color:var(--primary); white-space:nowrap;">Chọn kỳ xem:</label>
         <select id="historyWeekSelect" onchange="changeHistoryWeek(this.value)" style="font-weight:700; color:var(--primary); min-width:220px; border:2px solid var(--primary-light);">
           ${optionsHtml}
         </select>
@@ -4505,17 +4531,21 @@ function renderHistoryTable() {
       </div>
 
       <div class="no-print" style="display:flex; gap:0.5rem;">
-        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In tuần này</button>
+        <button class="btn btn-success btn-sm" onclick="exportHistoryCSV()">📥 Xuất Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In báo cáo</button>
         ${(loggedUser && loggedUser.role === 'admin') ? `
-          <button class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa bản chốt tuần này">🗑️ Xóa tuần này</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa bản chốt này">🗑️ Xóa</button>
         ` : ''}
       </div>
     </div>
 
     <div style="border:1px solid var(--border-light); border-radius:10px; overflow:hidden; background:white;">
-      <div style="background:var(--primary-subtle); padding:0.75rem 1rem; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="color:var(--primary); font-size:1rem; font-weight:800;">🏆 KẾT QUẢ THI ĐUA: ${currentWeekObj.week.toUpperCase()}</h3>
-        <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Ngày chốt sổ: ${currentWeekObj.date}</span>
+      <div style="background:var(--primary-subtle); padding:0.75rem 1rem; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+        <div>
+          <h3 style="color:var(--primary); font-size:1rem; font-weight:800;">🏆 KẾT QUẢ THI ĐUA: ${currentObj.week.toUpperCase()}</h3>
+          ${currentObj.subTitle ? `<div style="font-size:0.8rem; color:#1e40af; margin-top:2px;">📌 Tổng hợp từ: <strong>${currentObj.subTitle}</strong></div>` : ''}
+        </div>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Ngày chốt sổ: ${currentObj.date}</span>
       </div>
       <div class="table-responsive" style="border:none; border-radius:0;">
         <table>
@@ -4525,8 +4555,9 @@ function renderHistoryTable() {
               <th>Chi đoàn</th>
               <th style="text-align:center;">Khối</th>
               <th style="text-align:center;">Sĩ số</th>
-              <th style="text-align:center;">Điểm trừ còn lại (Sau bù)</th>
-              <th style="text-align:center;">Xếp loại</th>
+              ${currentHistoryMode === 'MONTH' ? `<th style="text-align:center;">Thống kê loại Tuần (XS / Tốt / Khá / Đạt / C.Đạt)</th>` : ''}
+              <th style="text-align:center;">${currentHistoryMode === 'MONTH' ? 'Tổng điểm trừ cả Tháng' : 'Điểm trừ còn lại (Sau bù)'}</th>
+              <th style="text-align:center;">Xếp loại ${currentHistoryMode === 'MONTH' ? 'Tháng' : 'Tuần'}</th>
             </tr>
           </thead>
           <tbody id="historyTableBody"></tbody>
@@ -4544,9 +4575,9 @@ function changeHistoryWeek(idx) {
 }
 
 function filterHistoryRows() {
-  const reversedHistory = weeklyHistory.slice().reverse();
-  const currentWeekObj = reversedHistory[selectedHistoryIndex];
-  if (!currentWeekObj) return;
+  const activeList = weeklyHistory.filter(h => currentHistoryMode === 'WEEK' ? h.type !== 'MONTH' : h.type === 'MONTH').reverse();
+  const currentObj = activeList[selectedHistoryIndex];
+  if (!currentObj) return;
 
   const gradeFilter = document.getElementById('historyGradeFilter') ? document.getElementById('historyGradeFilter').value : 'ALL';
   const q = document.getElementById('historyClassSearch') ? document.getElementById('historyClassSearch').value.trim().toUpperCase() : '';
@@ -4554,7 +4585,7 @@ function filterHistoryRows() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  currentWeekObj.data.forEach((c, idx) => {
+  currentObj.data.forEach((c, idx) => {
     const realRank = idx + 1;
     const cGrade = c.grade || (c.id.startsWith('10') ? '10' : (c.id.startsWith('11') ? '11' : '12'));
     
@@ -4566,12 +4597,17 @@ function filterHistoryRows() {
     else if (realRank === 2) rankBadge = `<span class="rank-pill rank-2">2</span>`;
     else if (realRank === 3) rankBadge = `<span class="rank-pill rank-3">3</span>`;
 
+    const weekStatsCol = currentHistoryMode === 'MONTH' 
+      ? `<td style="text-align:center; font-size:0.82rem; font-weight:600;">${c.weekStats || '--'}</td>` 
+      : '';
+
     tbody.innerHTML += `
       <tr>
         <td style="text-align:center;">${rankBadge}</td>
         <td><strong>Chi đoàn ${c.id}</strong></td>
         <td style="text-align:center;"><span class="badge badge-info">Khối ${cGrade}</span></td>
         <td style="text-align:center;">${c.size || '--'}</td>
+        ${weekStatsCol}
         <td style="text-align:center; color:${c.remainingPenalty <= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:800;">
           ${c.remainingPenalty <= 0 ? '0 đ (Dư +' + Math.abs(c.remainingPenalty) + 'đ)' : '-' + c.remainingPenalty + ' đ'}
         </td>
@@ -4592,25 +4628,26 @@ function deleteHistoryWeek(originalIdx) {
   }
 }
 
-// HÀM XỬ LÝ NÚT BẤM "CHỐT ĐIỂM TUẦN NÀY" CỦA ADMIN
+// 1. HÀM CHỐT TUẦN (Giữ nguyên cơ chế đưa điểm về 0)
 function finalizeWeek() {
   const weekName = prompt("Nhập tên tuần muốn chốt (VD: Tuần 1, Tuần 2...):");
   if (!weekName) return;
 
-  if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Dữ liệu cũ vẫn được lưu ngầm để tính cho Học Kỳ 1).\n\nBạn có chắc chắn?`)) return;
+  if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Dữ liệu cũ vẫn được lưu ngầm để tính cho Tháng và Học Kỳ 1).\n\nBạn có chắc chắn?`)) return;
 
-  // 1. Chụp ảnh Bảng xếp hạng hiện tại lưu vào Lịch sử
-  weeklyHistory.push({ id: Date.now(), week: weekName, date: new Date().toLocaleDateString('vi-VN'), data: calculateClassScores() });
+  weeklyHistory.push({ 
+    id: Date.now(), 
+    type: 'WEEK',
+    week: weekName, 
+    date: new Date().toLocaleDateString('vi-VN'), 
+    data: calculateClassScores() 
+  });
   localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
-  
-  // Gửi lịch sử lên Cloud
   if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
 
-  // 2. Đánh dấu các biên bản Cờ đỏ/TNXK hiện tại thành "Đã chốt" (isArchived)
   violations.forEach(v => { if (v.status === 'Đã duyệt') v.isArchived = true; });
   updateViolationsLocalAndCloud();
 
-  // 3. Xóa trắng điểm SĐB tuần này (nhưng giữ lại danh sách nghỉ học phục vụ HK1)
   Object.keys(sdbFullData).forEach(cid => {
     let s = sdbFullData[cid];
     s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;
@@ -4619,9 +4656,119 @@ function finalizeWeek() {
   });
   updateSdbLocalAndCloud();
 
-  selectedHistoryIndex = 0; // Đưa bộ lọc về tuần vừa mới chốt
+  currentHistoryMode = 'WEEK';
+  selectedHistoryIndex = 0;
   alert(`✅ Đã chốt thi đua [${weekName}] thành công! Bảng xếp hạng đã được làm mới.`);
   location.reload();
+}
+
+// 2. HÀM CHỐT THÁNG (Tự động gộp các tuần đã chốt, không làm mất điểm tuần đang chạy)
+function finalizeMonth() {
+  const availableWeeks = weeklyHistory.filter(h => h.type !== 'MONTH');
+  if (availableWeeks.length === 0) {
+    alert("⚠️ Chưa có tuần nào được chốt trong lịch sử! Vui lòng chốt các tuần trong tháng trước khi tổng kết Tháng.");
+    return;
+  }
+
+  const monthName = prompt("Nhập tên Tháng muốn tổng kết (VD: Tháng 9/2026, Tháng 10/2026...):");
+  if (!monthName) return;
+
+  const defaultCount = Math.min(4, availableWeeks.length);
+  const weekCountInput = prompt(
+    `Hiện có ${availableWeeks.length} tuần đã chốt trong lịch sử.\nNhập số tuần gần nhất muốn gộp vào [${monthName}] (Thường là 4 tuần):`, 
+    defaultCount
+  );
+  const numWeeks = parseInt(weekCountInput);
+  if (isNaN(numWeeks) || numWeeks <= 0 || numWeeks > availableWeeks.length) {
+    alert("❌ Số tuần gộp không hợp lệ!");
+    return;
+  }
+
+  // Lấy N tuần gần nhất để cộng dồn
+  const targetWeeks = availableWeeks.slice(-numWeeks);
+  const weekNames = targetWeeks.map(w => w.week).join(', ');
+
+  if (!confirm(`📆 XÁC NHẬN TỔNG KẾT [${monthName.toUpperCase()}]\nHệ thống sẽ cộng dồn kết quả của ${numWeeks} tuần: (${weekNames}).\n\nBạn có chắc chắn muốn chốt bảng tháng này?`)) return;
+
+  const monthData = CLASSES.map(c => {
+    let totalPen = 0;
+    let counts = { 'Xuất sắc': 0, 'Tốt': 0, 'Khá': 0, 'Đạt': 0, 'Chưa đạt': 0 };
+
+    targetWeeks.forEach(w => {
+      const found = (w.data || []).find(item => item.id === c.id);
+      if (found) {
+        totalPen += parseFloat(found.remainingPenalty || 0);
+        if (counts[found.rankLabel] !== undefined) counts[found.rankLabel]++;
+      }
+    });
+
+    totalPen = parseFloat(totalPen.toFixed(1));
+    const avgPen = totalPen / numWeeks; // Tính trung bình mỗi tuần trong tháng để xếp loại
+
+    let rankLabel = 'Xuất sắc', bClass = 'badge-success';
+    if (counts['Chưa đạt'] >= 2 || avgPen > 100) { rankLabel = 'Chưa đạt'; bClass = 'badge-danger'; }
+    else if (counts['Chưa đạt'] === 1 || avgPen > 70) { rankLabel = 'Đạt'; bClass = 'badge-gray'; }
+    else if (avgPen >= 50) { rankLabel = 'Khá'; bClass = 'badge-warning'; }
+    else if (totalPen > 0) { rankLabel = 'Tốt'; bClass = 'badge-info'; }
+    else { rankLabel = 'Xuất sắc'; bClass = 'badge-success'; }
+
+    return {
+      id: c.id,
+      grade: c.grade,
+      size: c.size,
+      remainingPenalty: totalPen,
+      weekStats: `<span style="color:var(--success)">${counts['Xuất sắc']} XS</span> / <span style="color:var(--primary-light)">${counts['Tốt']} T</span> / <span style="color:var(--warning)">${counts['Khá']} K</span> / ${counts['Đạt']} Đ / <span style="color:var(--danger)">${counts['Chưa đạt']} CĐ</span>`,
+      weekStatsRaw: `${counts['Xuất sắc']} XS - ${counts['Tốt']} Tốt - ${counts['Khá']} Khá - ${counts['Đạt']} Đạt - ${counts['Chưa đạt']} CĐ`,
+      rankLabel,
+      bClass
+    };
+  }).sort((a, b) => a.remainingPenalty - b.remainingPenalty);
+
+  weeklyHistory.push({
+    id: Date.now(),
+    type: 'MONTH',
+    week: monthName,
+    subTitle: weekNames,
+    date: new Date().toLocaleDateString('vi-VN'),
+    data: monthData
+  });
+
+  localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+  if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
+
+  currentHistoryMode = 'MONTH';
+  selectedHistoryIndex = 0;
+  renderHistoryTable();
+  alert(`🎉 Đã chốt bảng tổng kết [${monthName}] thành công!`);
+}
+
+// 3. HÀM XUẤT EXCEL CHO BẢNG LỊCH SỬ TUẦN HOẶC THÁNG ĐANG XEM
+function exportHistoryCSV() {
+  const activeList = weeklyHistory.filter(h => currentHistoryMode === 'WEEK' ? h.type !== 'MONTH' : h.type === 'MONTH').reverse();
+  const currentObj = activeList[selectedHistoryIndex];
+  if (!currentObj) return;
+
+  let csv = currentHistoryMode === 'MONTH'
+    ? "\uFEFFHạng,Chi đoàn,Khối,Sĩ số,Thống kê các tuần,Tổng điểm trừ Tháng,Xếp loại Tháng\n"
+    : "\uFEFFHạng,Chi đoàn,Khối,Sĩ số,Điểm trừ còn lại (Sau bù),Xếp loại Tuần\n";
+
+  currentObj.data.forEach((c, idx) => {
+    const cGrade = c.grade || (c.id.startsWith('10') ? '10' : (c.id.startsWith('11') ? '11' : '12'));
+    const penStr = c.remainingPenalty <= 0 ? `+${Math.abs(c.remainingPenalty)}` : `-${c.remainingPenalty}`;
+    if (currentHistoryMode === 'MONTH') {
+      csv += `${idx + 1},Chi đoàn ${c.id},${cGrade},${c.size},"${c.weekStatsRaw || ''}",${penStr},${c.rankLabel}\n`;
+    } else {
+      csv += `${idx + 1},Chi đoàn ${c.id},${cGrade},${c.size},${penStr},${c.rankLabel}\n`;
+    }
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `Ket_Qua_Thi_Dua_${currentObj.week.replace(/\s+/g, '_')}_YKA.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 // Thuật toán băm SHA-256 (Mã hóa một chiều không thể dịch ngược)
 async function sha256Hash(text) {
