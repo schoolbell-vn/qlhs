@@ -22,7 +22,11 @@
   .container { max-width: 480px; width: 100%; margin-top: 1rem; }
   
   .header { text-align: center; margin-bottom: 2rem; }
-  .header img { width: 120px; height: 120px; margin-bottom: 1rem; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.15); object-fit: cover; }
+  .header img { 
+    width: 140px; 
+    height: auto; 
+    margin-bottom: 1rem; 
+  }
   .header h1 { font-size: 1.4rem; color: var(--primary); font-weight: 800; margin-bottom: 0.35rem; }
   .header p { font-size: 0.95rem; color: #64748b; }
   
@@ -47,6 +51,14 @@
   .res-val { font-size: 1.8rem; font-weight: 800; margin-top: 0.3rem; }
   .val-danger { color: #dc2626; }
   .val-success { color: #16a34a; }
+  
+  /* Khung hiển thị Nghỉ có phép / Không phép */
+  .absence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; }
+  .absence-card { background: #f8fafc; padding: 0.85rem 0.5rem; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; }
+  .absence-num { font-size: 1.4rem; font-weight: 800; margin-top: 0.25rem; }
+  .num-warning { color: #d97706; }
+  .num-danger { color: #dc2626; }
+
   .res-details { font-size: 0.95rem; line-height: 1.6; color: #1e293b; margin-top: 0.5rem; background: #f1f5f9; padding: 1rem; border-radius: 12px; text-align: left; }
   
   .btn-reset { margin-top: 1.5rem; background: #f1f5f9; border: none; color: #475569; font-size: 0.9rem; font-weight: 600; cursor: pointer; width: 100%; text-align: center; padding: 0.75rem; border-radius: 10px; }
@@ -80,13 +92,30 @@
     </div>
 
     <div class="result-item">
-      <div class="res-label">Điểm rèn luyện tuần này</div>
+      <div class="res-label">Điểm rèn luyện</div>
       <div class="res-val" id="resScore">--</div>
     </div>
+    
     <div class="result-item">
-      <div class="res-label">Xếp loại tuần</div>
+      <div class="res-label">Xếp loại</div>
       <div class="res-val" id="resRank">--</div>
     </div>
+
+    <!-- MỤC MỚI: THỐNG KÊ NGHỈ HỌC -->
+    <div class="result-item">
+      <div class="res-label">Thống kê chuyên cần</div>
+      <div class="absence-grid">
+        <div class="absence-card">
+          <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Nghỉ có phép</div>
+          <div class="absence-num num-warning" id="resExcused">0 buổi</div>
+        </div>
+        <div class="absence-card">
+          <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Nghỉ không phép</div>
+          <div class="absence-num num-danger" id="resUnexcused">0 buổi</div>
+        </div>
+      </div>
+    </div>
+
     <div class="result-item">
       <div class="res-label">Chi tiết vi phạm / Điểm cộng</div>
       <div class="res-details" id="resDetails">--</div>
@@ -102,7 +131,6 @@
 </div>
 
 <script>
-// Thầy dán lại URL Apps Script (Phiên bản mới nhất đã Deploy) vào đây
 const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
 
 async function sha256Hash(text) {
@@ -127,7 +155,6 @@ function handleManualSearch(e) {
   executeSearch(id);
 }
 
-// HÀM HỨNG DỮ LIỆU TỪ MÁY CHỦ (BẮT BUỘC PHẢI LÀ BIẾN TOÀN CỤC)
 window.processParentData = function(result) {
   const btn = document.getElementById('btnSubmit');
   const resultBox = document.getElementById('resultBox');
@@ -137,7 +164,6 @@ window.processParentData = function(result) {
   btn.innerHTML = "Tra Cứu Kết Quả";
   btn.disabled = false;
 
-  // Dọn dẹp thẻ script cũ cho nhẹ web
   const oldScript = document.getElementById('yka-jsonp');
   if (oldScript) oldScript.remove();
 
@@ -159,14 +185,24 @@ window.processParentData = function(result) {
       localStorage.setItem('yka_saved_moet_id', id);
       
       const cols = result.data;
-      let studentName, score, rank, rawDetails;
+      let studentName, score, rank, rawDetails, excused = 0, unexcused = 0;
 
-      if (cols.length >= 5) {
+      if (cols.length >= 7) {
+          // Cấu trúc 7 cột mới nhất
+          studentName = cols[1];
+          score = cols[2];
+          rank = cols[3];
+          rawDetails = String(cols[4]).trim();
+          excused = cols[5] || 0;
+          unexcused = cols[6] || 0;
+      } else if (cols.length >= 5) {
+          // Cấu trúc 5 cột
           studentName = cols[1];
           score = cols[2];
           rank = cols[3];
           rawDetails = String(cols[4]).trim();
       } else {
+          // Cấu trúc 4 cột cũ
           studentName = "Đang cập nhật...";
           score = cols[1];
           rank = cols[2];
@@ -180,6 +216,9 @@ window.processParentData = function(result) {
       rankEl.textContent = rank;
       rankEl.className = (rank === 'Chưa đạt' || rank === 'Yếu' || rank === 'Không đạt') ? 'res-val val-danger' : 'res-val val-success';
       
+      document.getElementById('resExcused').textContent = excused + " buổi";
+      document.getElementById('resUnexcused').textContent = unexcused + " buổi";
+
       document.getElementById('resDetails').innerHTML = rawDetails.split('|').join('<br>• ');
       
       resultBox.style.display = 'block';
@@ -197,19 +236,16 @@ async function executeSearch(id) {
     const rawInput = String(id).trim().toLowerCase().replace(/\s/g, '');
     const userHash = await sha256Hash(rawInput);
 
-    // THUẬT TOÁN JSONP: TẠO THẺ SCRIPT ĐỂ TẢI DỮ LIỆU THAY VÌ DÙNG LỆNH FETCH
     const script = document.createElement('script');
     script.id = 'yka-jsonp';
     script.src = MASTER_APP_SCRIPT_URL + "?action=search_phuhuynh&hash=" + userHash + "&callback=processParentData";
     
-    // Nếu rớt mạng hoặc lỗi tải kịch bản
     script.onerror = function() {
       alert("⚠️ Lỗi kết nối mạng. Không thể liên lạc với máy chủ.");
       btn.innerHTML = "Tra Cứu Kết Quả";
       btn.disabled = false;
     };
 
-    // Gắn script vào web để nó tự chạy hàm processParentData
     document.body.appendChild(script);
 
   } catch (error) {
