@@ -1520,16 +1520,44 @@ async function saveTabsConfig() {
   });
   localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
   
+  // Tìm nút bấm để tạo hiệu ứng chuyển đổi trạng thái
+  const btn = document.querySelector('button[onclick="saveTabsConfig()"]');
+  const oldText = btn ? btn.innerHTML : "💾 Lưu Ma Trận Phân Quyền";
+  if (btn) {
+    btn.innerHTML = "⏳ Đang lưu cấu hình...";
+    btn.style.backgroundColor = "var(--warning)";
+    btn.disabled = true;
+  }
+
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
+      mode: 'no-cors', // Vượt tường lửa GitHub Pages
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      redirect: "follow",
       body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
     });
-    alert('✅ Đã lưu cấu hình Phân Quyền Thẻ thành công!');
-    setupUserSessionUI(); // F5 giao diện ngay lập tức
-  } catch(e) { console.error("Lỗi:", e); }
+    
+    setupUserSessionUI(); // Cập nhật lại giao diện ngay lập tức
+
+    if (btn) {
+      btn.innerHTML = "✅ Đã lưu Ma Trận thành công!";
+      btn.style.backgroundColor = "var(--success)";
+      setTimeout(() => {
+        btn.innerHTML = oldText;
+        btn.style.backgroundColor = "";
+        btn.disabled = false;
+      }, 2500);
+    }
+    alert('✅ Đã lưu cấu hình Phân Quyền Thẻ lên Đám mây thành công!');
+  } catch(e) { 
+    console.error("Lỗi:", e); 
+    alert('⚠️ Lưu nội bộ thành công nhưng chưa đẩy được lên Đám mây.');
+    if (btn) {
+      btn.innerHTML = oldText;
+      btn.style.backgroundColor = "";
+      btn.disabled = false;
+    }
+  }
 }
 // Hàm gọi API lấy danh sách học sinh từ Google Drive
 async function fetchDatabaseFromCloud() {
@@ -1584,10 +1612,16 @@ async function fetchDatabaseFromCloud() {
       localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
     }
     
-    // Nạp Danh sách 85 Tài khoản
-    if (db.users && db.users.length > 0) {
+    // Nạp Danh sách 85 Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận, tránh lỗi mất tài khoản Cờ đỏ/SĐB)
+    if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       systemUsers = db.users;
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+    } else {
+      // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ 85 tài khoản và đẩy lên Đám mây
+      if (!systemUsers || systemUsers.length <= 1) {
+        systemUsers = generateDefaultUsers();
+        updateUsersLocalAndCloud();
+      }
     }
 
     // Cập nhật lại giao diện ngay khi có dữ liệu từ Cloud về
@@ -1696,21 +1730,47 @@ const DEFAULT_RULES = [
 
 // Chuyển thành biến let để có thể thay đổi được. Ưu tiên lấy từ cấu hình, nếu không có thì lấy Mặc định
 let RULES = JSON.parse(localStorage.getItem('yka_rules_v1')) || DEFAULT_RULES;
-// Hàm 1: Lưu cấu hình Tiêu chí lên Google Drive
+// Hàm 1: Lưu cấu hình Tiêu chí lên Google Drive (Đã thêm no-cors và trạng thái nút)
 async function saveRulesToCloud() {
   localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
+  
+  // Tìm nút bấm để đổi trạng thái
+  const btn = document.querySelector('button[onclick="saveRulesToCloud()"]');
+  const oldText = btn ? btn.innerHTML : "💾 LƯU CẤU HÌNH VÀ ÁP DỤNG TOÀN TRƯỜNG";
+  if (btn) {
+    btn.innerHTML = "⏳ Đang đẩy cấu hình lên Đám mây...";
+    btn.style.backgroundColor = "var(--warning)";
+    btn.disabled = true;
+  }
+
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
+      mode: 'no-cors', // <--- CHÌA KHÓA VƯỢT TƯỜNG LỬA GITHUB
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      redirect: "follow",
       body: JSON.stringify({ action: "save_data", fileName: "db_rules.json", content: RULES })
     });
-    alert("✅ Đã lưu Cấu hình Tiêu chí thành công! Tất cả các tài khoản sẽ nhận được danh sách mới khi tải lại trang.");
+    
     initRuleSelects(); 
+    
+    if (btn) {
+      btn.innerHTML = "✅ ĐÃ LƯU LÊN ĐÁM MÂY THÀNH CÔNG!";
+      btn.style.backgroundColor = "var(--success)";
+      setTimeout(() => {
+        btn.innerHTML = oldText;
+        btn.style.backgroundColor = "";
+        btn.disabled = false;
+      }, 2500);
+    }
+    alert("✅ Đã lưu Cấu hình Tiêu chí lên Đám mây thành công! Tất cả các máy khác sẽ nhận được danh sách mới.");
   } catch(e) { 
     console.error("Lỗi lưu lên cloud:", e); 
     alert("⚠️ Lưu nội bộ thành công nhưng chưa đẩy được lên Đám mây.");
+    if (btn) {
+      btn.innerHTML = oldText;
+      btn.style.backgroundColor = "";
+      btn.disabled = false;
+    }
   }
 }
 
@@ -3201,8 +3261,8 @@ async function syncDataToCloud(fileName, content) {
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
+      mode: 'no-cors', // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ LƯU TÀI KHOẢN LÊN DRIVE
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      redirect: "follow", // <-- BẮT BUỘC PHẢI THÊM DÒNG NÀY
       body: JSON.stringify({ action: "save_data", fileName: fileName, content: content })
     });
   } catch(e) { console.error("Lỗi lưu lên cloud:", e); }
@@ -3980,8 +4040,28 @@ function saveUserAccountsToStorage() {
     }
   });
 
+  const btn = document.querySelector('button[onclick="saveUserAccountsToStorage()"]');
+  const oldText = btn ? btn.innerHTML : "💾 Lưu Thiết Lập Tài Khoản";
+  if (btn) {
+    btn.innerHTML = "⏳ Đang đồng bộ...";
+    btn.style.backgroundColor = "var(--warning)";
+    btn.disabled = true;
+  }
+
   updateUsersLocalAndCloud();
-  alert('✅ Đã lưu thành công cấu hình Phân Quyền, Phạm vi và Mật khẩu cho toàn bộ hệ thống!');
+
+  setTimeout(() => {
+    if (btn) {
+      btn.innerHTML = "✅ Đã lưu thành công!";
+      btn.style.backgroundColor = "var(--success)";
+      setTimeout(() => {
+        btn.innerHTML = oldText;
+        btn.style.backgroundColor = "";
+        btn.disabled = false;
+      }, 2500);
+    }
+    alert('✅ Đã lưu thành công cấu hình Phân Quyền, Phạm vi và Mật khẩu cho toàn bộ hệ thống!');
+  }, 600);
 }
 
 function exportLeaderboardCSV() {
