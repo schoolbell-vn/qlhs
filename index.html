@@ -1216,7 +1216,7 @@
             <option value="sdb">31 Tài khoản Sổ Đầu Bài</option>
             <option value="codo">31 Tài khoản Cờ Đỏ</option>
             <option value="tnxk">3 Tổ Trưởng TNXK Khối</option>
-            <option value="bch">Ban Giám Hiệu / BCH</option>
+            <option value="bch">Ban Giám Hiệu / BGH</option>
             <option value="admin">Ban Quản Trị (Admin)</option>
           </select>
             <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
@@ -1638,9 +1638,6 @@ async function fetchDatabaseFromCloud() {
     console.warn("Lỗi kết nối:", error);
   }
 }
-
-// Gọi hàm lấy dữ liệu
-fetchDatabaseFromCloud();
 
 function refreshStudentDatalists() {
   const codoSel = document.getElementById('codoClassSelect');
@@ -2600,11 +2597,15 @@ function exportBchBonusCSV() {
 // ==================== TỔNG KẾT THI ĐUA TẬP THỂ (HK1 & CẢ NĂM) ====================
 
 function getSimulatedWeeklyHistory(classId, totalWeeks) {
-  // Lấy kết quả xếp loại thực tế của lớp từ các tuần đã bấm Chốt trong weeklyHistory
-  return weeklyHistory.slice(0, totalWeeks - 1).map(w => {
+  const pastRanks = weeklyHistory.slice(0, totalWeeks - 1).map(w => {
     const found = (w.data || []).find(c => c.id === classId);
     return found ? found.rankLabel : 'Tốt';
   });
+  // Các tuần chưa học tới trong tương lai mặc định tính là 'Tốt' để không bị rớt hạng oan đầu kỳ
+  while (pastRanks.length < totalWeeks - 1) {
+    pastRanks.push('Tốt');
+  }
+  return pastRanks;
 }
 
 function calculateHk1ClassScores() {
@@ -2776,6 +2777,7 @@ function switchTab(tabId) {
   if (tabId === 'review') renderReviewTable();
   if (tabId === 'students') renderStudentManagementTable();
   if (tabId === 'rules-config') renderRulesConfigTable();
+  if (tabId === 'history') renderHistoryTable();
 }
 
 function initRuleSelects() {
@@ -2899,12 +2901,15 @@ function renderSdbAbsenceList() {
   const tbody = document.getElementById('sdbAbsenceListBody');
   tbody.innerHTML = '';
 
-  if (!data.absences || data.absences.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1rem; color:var(--text-muted);">Chi đoàn chưa có học sinh nào nghỉ học trong tuần.</td></tr>`;
+  // Chỉ lấy các lượt nghỉ của tuần hiện tại (chưa bị chốt)
+  const activeAbsences = (data.absences || []).map((item, originalIdx) => ({ ...item, originalIdx })).filter(item => !item.isArchived);
+
+  if (activeAbsences.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1rem; color:var(--text-muted);">Chi đoàn chưa có học sinh nào nghỉ học trong tuần này.</td></tr>`;
     return;
   }
 
-  data.absences.forEach((item, idx) => {
+  activeAbsences.forEach((item) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${item.date}</td>
@@ -2913,7 +2918,7 @@ function renderSdbAbsenceList() {
       <td style="text-align:center; font-weight:bold; color:var(--danger);">${item.point} đ</td>
       <td style="font-size:0.8rem;">${item.reason || '--'}</td>
       <td style="text-align:center;">
-        <button type="button" class="btn btn-outline btn-sm" onclick="removeSdbAbsenceItem(${idx})" style="color:var(--danger);">✕</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="removeSdbAbsenceItem(${item.originalIdx})" style="color:var(--danger);">✕</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -2981,7 +2986,7 @@ function recalcSdbFull() {
 
       const data = sdbFullData[targetClass] || { absences: [] };
       let absencePenalty = 0;
-      (data.absences || []).forEach(a => absencePenalty += Math.abs(a.point));
+      (data.absences || []).filter(a => !a.isArchived).forEach(a => absencePenalty += Math.abs(a.point));
 
       const goodCount = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
       const poorCount = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
@@ -3875,7 +3880,9 @@ function renderStudentSearchTable() {
   const map = {};
 
   violations.filter(v => {
+      // ĐÃ BỔ SUNG !v.isArchived ĐỂ CHỈ TÍNH TUẦN HIỆN TẠI (HOẶC KHI LỌC NGÀY)
       if (v.status !== 'Đã duyệt' || v.isClassBonus) return false;
+      if (!fromDate && !toDate && v.isArchived) return false; 
       if (fromDate && v.date < fromDate) return false;
       if (toDate && v.date > toDate) return false;
       return true;
@@ -3891,7 +3898,12 @@ function renderStudentSearchTable() {
 
   Object.keys(sdbFullData).forEach(cid => {
     const s = sdbFullData[cid];
-    (s.absences || []).forEach(a => {
+    (s.absences || []).filter(a => {
+      if (!fromDate && !toDate && a.isArchived) return false;
+      if (fromDate && a.date < fromDate) return false;
+      if (toDate && a.date > toDate) return false;
+      return true;
+    }).forEach(a => {
       const key = `${cid}_${a.student}`;
       if (!map[key]) {
         map[key] = { classId: cid, name: a.student, minus: 0, plus: 0, details: [] };
@@ -3903,7 +3915,7 @@ function renderStudentSearchTable() {
 
   const list = Object.values(map).filter(s => s.name.toLowerCase().includes(q) || s.classId.toLowerCase().includes(q));
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Không tìm thấy học sinh nào có dữ liệu trừ/cộng điểm hoặc nghỉ học.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Tuần này chưa có học sinh nào bị trừ/cộng điểm hoặc nghỉ học.</td></tr>`;
     return;
   }
 
@@ -4452,58 +4464,164 @@ function renderAlerts() {
 
 // ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN =================
 let weeklyHistory = JSON.parse(localStorage.getItem('yka_history_v1')) || [];
+let selectedHistoryIndex = 0;
 
 function renderHistoryTable() {
   const container = document.getElementById('historyContainer');
-  if(!container) return;
+  if (!container) return;
   container.innerHTML = '';
-  if (weeklyHistory.length === 0) {
-      container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Chưa có dữ liệu lịch sử tuần nào được chốt.</p>'; return;
+
+  if (!weeklyHistory || weeklyHistory.length === 0) {
+    container.innerHTML = '<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu lịch sử tuần nào được chốt.</p>';
+    return;
   }
-  
-  weeklyHistory.slice().reverse().forEach(h => {
-     let html = `<div style="border:1px solid var(--border); border-radius:8px; padding:1rem; margin-bottom:1rem; background:#f8fafc;">
-        <h3 style="color:var(--primary); margin-bottom:0.5rem;">📅 ${h.week} <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(Chốt ngày: ${h.date})</span></h3>
-        <div class="table-responsive"><table><thead><tr><th style="width:40px;">Hạng</th><th>Chi đoàn</th><th>Tổng trừ (Sau bù)</th><th>Xếp loại</th></tr></thead><tbody>`;
-     
-     h.data.forEach((c, idx) => {
-        html += `<tr><td style="text-align:center; font-weight:bold;">${idx + 1}</td><td><strong>Chi đoàn ${c.id}</strong></td>
-        <td style="color:${c.remainingPenalty <= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:bold;">${c.remainingPenalty <= 0 ? 'Hết trừ' : '-'+c.remainingPenalty+'đ'}</td>
-        <td><span class="badge ${c.bClass}">${c.rankLabel}</span></td></tr>`;
-     });
-     html += `</tbody></table></div></div>`;
-     container.innerHTML += html;
+
+  const reversedHistory = weeklyHistory.slice().reverse();
+  if (selectedHistoryIndex >= reversedHistory.length) selectedHistoryIndex = 0;
+
+  const currentWeekObj = reversedHistory[selectedHistoryIndex];
+  const originalIndex = weeklyHistory.length - 1 - selectedHistoryIndex;
+
+  let optionsHtml = reversedHistory.map((h, idx) => 
+    `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>📅 ${h.week} (Chốt: ${h.date})</option>`
+  ).join('');
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; background:#f8fafc; padding:1rem; border-radius:10px; border:1px solid var(--border); margin-bottom:1rem;">
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; flex:1;">
+        <label style="font-weight:700; color:var(--primary); white-space:nowrap;">Chọn tuần xem:</label>
+        <select id="historyWeekSelect" onchange="changeHistoryWeek(this.value)" style="font-weight:700; color:var(--primary); min-width:220px; border:2px solid var(--primary-light);">
+          ${optionsHtml}
+        </select>
+
+        <select id="historyGradeFilter" onchange="filterHistoryRows()" style="font-size:0.85rem;">
+          <option value="ALL">Tất cả (36 Chi đoàn)</option>
+          <option value="10">Khối 10</option>
+          <option value="11">Khối 11</option>
+          <option value="12">Khối 12</option>
+        </select>
+
+        <input type="text" id="historyClassSearch" onkeyup="filterHistoryRows()" placeholder="🔍 Tìm nhanh lớp (VD: 10A1)..." style="width:190px; font-size:0.85rem;">
+      </div>
+
+      <div class="no-print" style="display:flex; gap:0.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In tuần này</button>
+        ${(loggedUser && loggedUser.role === 'admin') ? `
+          <button class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa bản chốt tuần này">🗑️ Xóa tuần này</button>
+        ` : ''}
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--border-light); border-radius:10px; overflow:hidden; background:white;">
+      <div style="background:var(--primary-subtle); padding:0.75rem 1rem; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="color:var(--primary); font-size:1rem; font-weight:800;">🏆 KẾT QUẢ THI ĐUA: ${currentWeekObj.week.toUpperCase()}</h3>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Ngày chốt sổ: ${currentWeekObj.date}</span>
+      </div>
+      <div class="table-responsive" style="border:none; border-radius:0;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px; text-align:center;">Hạng</th>
+              <th>Chi đoàn</th>
+              <th style="text-align:center;">Khối</th>
+              <th style="text-align:center;">Sĩ số</th>
+              <th style="text-align:center;">Điểm trừ còn lại (Sau bù)</th>
+              <th style="text-align:center;">Xếp loại</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  filterHistoryRows();
+}
+
+function changeHistoryWeek(idx) {
+  selectedHistoryIndex = parseInt(idx);
+  renderHistoryTable();
+}
+
+function filterHistoryRows() {
+  const reversedHistory = weeklyHistory.slice().reverse();
+  const currentWeekObj = reversedHistory[selectedHistoryIndex];
+  if (!currentWeekObj) return;
+
+  const gradeFilter = document.getElementById('historyGradeFilter') ? document.getElementById('historyGradeFilter').value : 'ALL';
+  const q = document.getElementById('historyClassSearch') ? document.getElementById('historyClassSearch').value.trim().toUpperCase() : '';
+  const tbody = document.getElementById('historyTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  currentWeekObj.data.forEach((c, idx) => {
+    const realRank = idx + 1;
+    const cGrade = c.grade || (c.id.startsWith('10') ? '10' : (c.id.startsWith('11') ? '11' : '12'));
+    
+    if (gradeFilter !== 'ALL' && cGrade !== gradeFilter) return;
+    if (q && !c.id.toUpperCase().includes(q)) return;
+
+    let rankBadge = `<span class="rank-pill rank-other">${realRank}</span>`;
+    if (realRank === 1) rankBadge = `<span class="rank-pill rank-1">1</span>`;
+    else if (realRank === 2) rankBadge = `<span class="rank-pill rank-2">2</span>`;
+    else if (realRank === 3) rankBadge = `<span class="rank-pill rank-3">3</span>`;
+
+    tbody.innerHTML += `
+      <tr>
+        <td style="text-align:center;">${rankBadge}</td>
+        <td><strong>Chi đoàn ${c.id}</strong></td>
+        <td style="text-align:center;"><span class="badge badge-info">Khối ${cGrade}</span></td>
+        <td style="text-align:center;">${c.size || '--'}</td>
+        <td style="text-align:center; color:${c.remainingPenalty <= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:800;">
+          ${c.remainingPenalty <= 0 ? '0 đ (Dư +' + Math.abs(c.remainingPenalty) + 'đ)' : '-' + c.remainingPenalty + ' đ'}
+        </td>
+        <td style="text-align:center;"><span class="badge ${c.bClass}">${c.rankLabel}</span></td>
+      </tr>
+    `;
   });
 }
 
-function finalizeWeek() {
-    const weekName = prompt("Nhập tên tuần muốn chốt (VD: Tuần 1, Tuần 2...):");
-    if (!weekName) return;
-
-    if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Dữ liệu cũ vẫn được lưu ngầm để tính cho Học Kỳ 1).\n\nBạn có chắc chắn?`)) return;
-
-    // 1. Chụp ảnh Bảng xếp hạng hiện tại lưu vào Lịch sử
-    weeklyHistory.push({ id: Date.now(), week: weekName, date: new Date().toLocaleDateString('vi-VN'), data: calculateClassScores() });
+function deleteHistoryWeek(originalIdx) {
+  const target = weeklyHistory[originalIdx];
+  if (confirm(`⚠️ Bạn có chắc chắn muốn xóa bản lưu lịch sử của [${target.week}] không?`)) {
+    weeklyHistory.splice(originalIdx, 1);
+    selectedHistoryIndex = 0;
     localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
-    
-    // Gửi lịch sử lên Cloud
     if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
+    renderHistoryTable();
+  }
+}
 
-    // 2. Đánh dấu các biên bản Cờ đỏ/TNXK hiện tại thành "Đã chốt" (isArchived)
-    violations.forEach(v => { if (v.status === 'Đã duyệt') v.isArchived = true; });
-    updateViolationsLocalAndCloud();
+// HÀM XỬ LÝ NÚT BẤM "CHỐT ĐIỂM TUẦN NÀY" CỦA ADMIN
+function finalizeWeek() {
+  const weekName = prompt("Nhập tên tuần muốn chốt (VD: Tuần 1, Tuần 2...):");
+  if (!weekName) return;
 
-    // 3. Xóa trắng điểm SĐB tuần này (nhưng giữ lại danh sách nghỉ học phục vụ HK1)
-    Object.keys(sdbFullData).forEach(cid => {
-        let s = sdbFullData[cid];
-        s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;
-        s.goodScores = 0; s.fairScores = 0; s.medScores = 0; s.poorScores = 0;
-        if (s.absences) s.absences.forEach(a => a.isArchived = true);
-    });
-    updateSdbLocalAndCloud();
+  if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Dữ liệu cũ vẫn được lưu ngầm để tính cho Học Kỳ 1).\n\nBạn có chắc chắn?`)) return;
 
-    alert(`✅ Đã chốt thi đua [${weekName}] thành công! Bảng xếp hạng đã được làm mới.`);
-    location.reload(); // Tải lại toàn bộ hệ thống
+  // 1. Chụp ảnh Bảng xếp hạng hiện tại lưu vào Lịch sử
+  weeklyHistory.push({ id: Date.now(), week: weekName, date: new Date().toLocaleDateString('vi-VN'), data: calculateClassScores() });
+  localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+  
+  // Gửi lịch sử lên Cloud
+  if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
+
+  // 2. Đánh dấu các biên bản Cờ đỏ/TNXK hiện tại thành "Đã chốt" (isArchived)
+  violations.forEach(v => { if (v.status === 'Đã duyệt') v.isArchived = true; });
+  updateViolationsLocalAndCloud();
+
+  // 3. Xóa trắng điểm SĐB tuần này (nhưng giữ lại danh sách nghỉ học phục vụ HK1)
+  Object.keys(sdbFullData).forEach(cid => {
+    let s = sdbFullData[cid];
+    s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;
+    s.goodScores = 0; s.fairScores = 0; s.medScores = 0; s.poorScores = 0;
+    if (s.absences) s.absences.forEach(a => a.isArchived = true);
+  });
+  updateSdbLocalAndCloud();
+
+  selectedHistoryIndex = 0; // Đưa bộ lọc về tuần vừa mới chốt
+  alert(`✅ Đã chốt thi đua [${weekName}] thành công! Bảng xếp hạng đã được làm mới.`);
+  location.reload();
 }
 // Thuật toán băm SHA-256 (Mã hóa một chiều không thể dịch ngược)
 async function sha256Hash(text) {
