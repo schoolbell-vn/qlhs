@@ -1409,12 +1409,13 @@
     </div>
   </div>
 
- <!-- TAB: LỊCH SỬ CHỐT TUẦN & THÁNG -->
+ <!-- TAB: LỊCH SỬ CHỐT TUẦN, THÁNG & NĂM HỌC -->
   <div id="tab-history" class="tab-content">
     <div class="card">
       <div class="card-header">
-        <h2>📚 LỊCH SỬ BẢNG XẾP HẠNG TUẦN & TỔNG KẾT THÁNG</h2>
+        <h2>📚 LỊCH SỬ XẾP HẠNG TUẦN • THÁNG • HỌC KỲ & NĂM HỌC</h2>
         <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button type="button" class="btn btn-success btn-sm" id="btnFinalizeYear" onclick="finalizeYearOrTerm()" style="display:none;">🎓 Admin: Chốt Học Kỳ / Cả Năm</button>
           <button type="button" class="btn btn-primary btn-sm" id="btnFinalizeMonth" onclick="finalizeMonth()" style="display:none;">📆 Admin: Chốt Tổng Kết Tháng</button>
           <button type="button" class="btn btn-danger btn-sm" id="btnFinalizeWeek" onclick="finalizeWeek()" style="display:none;">🔒 Admin: Chốt Điểm Tuần Này</button>
         </div>
@@ -2195,8 +2196,10 @@ function setupUserSessionUI() {
   const scopeBanner = document.getElementById('scopeBanner');
   const btnFinalizeWeek = document.getElementById('btnFinalizeWeek');
   const btnFinalizeMonth = document.getElementById('btnFinalizeMonth');
+  const btnFinalizeYear = document.getElementById('btnFinalizeYear');
   if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'none';
   if (btnFinalizeMonth) btnFinalizeMonth.style.display = 'none';
+  if (btnFinalizeYear) btnFinalizeYear.style.display = 'none';
   
   if (myRole === 'admin') {
     roleLabel.textContent = 'BÍ THƯ / ADMIN (TOÀN QUYỀN)';
@@ -2204,8 +2207,9 @@ function setupUserSessionUI() {
     bannerDesc.textContent = 'Đồng chí có toàn quyền theo dõi 36 lớp, độc quyền cộng thưởng hoạt động theo KH thi đua, duyệt mọi biên bản và quản lý tài khoản.';
     bannerTag.textContent = 'ADMIN';
     scopeBanner.className = 'scope-banner';
-    if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'inline-block'; // Bật nút chốt điểm cho Admin
+    if (btnFinalizeWeek) btnFinalizeWeek.style.display = 'inline-block';
     if (btnFinalizeMonth) btnFinalizeMonth.style.display = 'inline-block';
+    if (btnFinalizeYear) btnFinalizeYear.style.display = 'inline-block';
   } else if (myRole === 'sdb') {
     roleLabel.textContent = `CÁN BỘ SĐB CHI ĐOÀN ${loggedUser.sdbClass}`;
     bannerTitle.textContent = `Tài khoản Sổ Đầu Bài: Chi đoàn ${loggedUser.sdbClass}`;
@@ -4465,10 +4469,10 @@ function renderAlerts() {
   if(!hasClassAlert) tbodyClass.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tuần này không có chi đoàn nào bị báo động đỏ. 🎉</td></tr>';
 }
 
-// ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN & THÁNG =================
+// ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN, THÁNG & NĂM HỌC =================
 let weeklyHistory = JSON.parse(localStorage.getItem('yka_history_v1')) || [];
 let selectedHistoryIndex = 0;
-let currentHistoryMode = 'WEEK'; // 'WEEK' (Xem tuần) hoặc 'MONTH' (Xem tháng)
+let currentHistoryMode = 'WEEK'; // 'WEEK' | 'MONTH' | 'YEAR'
 
 function switchHistoryMode(mode) {
   currentHistoryMode = mode;
@@ -4476,40 +4480,53 @@ function switchHistoryMode(mode) {
   renderHistoryTable();
 }
 
+function getFilteredHistoryList(mode) {
+  return weeklyHistory.map((item, idx) => ({ ...item, origIdx: idx })).filter(h => {
+    const t = h.type || 'WEEK';
+    return t === mode;
+  }).reverse();
+}
+
 function renderHistoryTable() {
   const container = document.getElementById('historyContainer');
   if (!container) return;
   container.innerHTML = '';
 
-  // Tách danh sách Tuần và danh sách Tháng từ kho lưu trữ chung (đồng bộ tự động lên Cloud)
-  const weekList = weeklyHistory.map((item, idx) => ({ ...item, origIdx: idx })).filter(h => h.type !== 'MONTH').reverse();
-  const monthList = weeklyHistory.map((item, idx) => ({ ...item, origIdx: idx })).filter(h => h.type === 'MONTH').reverse();
+  const weekList = getFilteredHistoryList('WEEK');
+  const monthList = getFilteredHistoryList('MONTH');
+  const yearList = getFilteredHistoryList('YEAR');
 
-  const activeList = currentHistoryMode === 'WEEK' ? weekList : monthList;
+  const activeList = currentHistoryMode === 'WEEK' ? weekList : (currentHistoryMode === 'MONTH' ? monthList : yearList);
   if (selectedHistoryIndex >= activeList.length) selectedHistoryIndex = 0;
 
-  // Thanh chuyển đổi chế độ Xem Tuần / Xem Tháng
+  // Thanh chuyển đổi 3 chế độ: Xem Tuần / Xem Tháng / Xem Học Kỳ & Năm
   let modeTabsHtml = `
-    <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:2px solid var(--border-light); padding-bottom:0.75rem;">
-      <button class="btn btn-sm ${currentHistoryMode === 'WEEK' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('WEEK')" style="padding:0.5rem 1rem;">
+    <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:2px solid var(--border-light); padding-bottom:0.75rem; flex-wrap:wrap;">
+      <button type="button" class="btn btn-sm ${currentHistoryMode === 'WEEK' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('WEEK')" style="padding:0.5rem 1rem;">
         📅 Lịch Sử Từng Tuần (${weekList.length})
       </button>
-      <button class="btn btn-sm ${currentHistoryMode === 'MONTH' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('MONTH')" style="padding:0.5rem 1rem;">
+      <button type="button" class="btn btn-sm ${currentHistoryMode === 'MONTH' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('MONTH')" style="padding:0.5rem 1rem;">
         📆 Xếp Hạng Tháng (${monthList.length})
+      </button>
+      <button type="button" class="btn btn-sm ${currentHistoryMode === 'YEAR' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('YEAR')" style="padding:0.5rem 1rem;">
+        🎓 Xếp Hạng Học Kỳ & Năm (${yearList.length})
       </button>
     </div>
   `;
 
+  const modeLabel = currentHistoryMode === 'WEEK' ? 'tuần' : (currentHistoryMode === 'MONTH' ? 'tháng' : 'học kỳ / năm học');
+
   if (activeList.length === 0) {
-    container.innerHTML = modeTabsHtml + `<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu ${currentHistoryMode === 'WEEK' ? 'tuần' : 'tháng'} nào được chốt.</p>`;
+    container.innerHTML = modeTabsHtml + `<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu ${modeLabel} nào được chốt.</p>`;
     return;
   }
 
   const currentObj = activeList[selectedHistoryIndex];
   const originalIndex = currentObj.origIdx;
+  const icon = currentHistoryMode === 'WEEK' ? '📅' : (currentHistoryMode === 'MONTH' ? '📆' : '🎓');
 
   let optionsHtml = activeList.map((h, idx) => 
-    `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>${currentHistoryMode === 'WEEK' ? '📅' : '📆'} ${h.week} (Chốt: ${h.date})</option>`
+    `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>${icon} ${h.week} (Chốt: ${h.date})</option>`
   ).join('');
 
   container.innerHTML = modeTabsHtml + `
@@ -4531,10 +4548,10 @@ function renderHistoryTable() {
       </div>
 
       <div class="no-print" style="display:flex; gap:0.5rem;">
-        <button class="btn btn-success btn-sm" onclick="exportHistoryCSV()">📥 Xuất Excel</button>
-        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In báo cáo</button>
+        <button type="button" class="btn btn-success btn-sm" onclick="exportHistoryCSV()">📥 Xuất Excel</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In báo cáo</button>
         ${(loggedUser && loggedUser.role === 'admin') ? `
-          <button class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa bản chốt này">🗑️ Xóa</button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa hoặc Hoàn tác bản chốt này">🗑️ Xóa / Hoàn tác</button>
         ` : ''}
       </div>
     </div>
@@ -4555,9 +4572,9 @@ function renderHistoryTable() {
               <th>Chi đoàn</th>
               <th style="text-align:center;">Khối</th>
               <th style="text-align:center;">Sĩ số</th>
-              ${currentHistoryMode === 'MONTH' ? `<th style="text-align:center;">Thống kê loại Tuần (XS / Tốt / Khá / Đạt / C.Đạt)</th>` : ''}
-              <th style="text-align:center;">${currentHistoryMode === 'MONTH' ? 'Tổng điểm trừ cả Tháng' : 'Điểm trừ còn lại (Sau bù)'}</th>
-              <th style="text-align:center;">Xếp loại ${currentHistoryMode === 'MONTH' ? 'Tháng' : 'Tuần'}</th>
+              ${currentHistoryMode !== 'WEEK' ? `<th style="text-align:center;">Thống kê số tuần (XS / Tốt / Khá / Đạt / C.Đạt)</th>` : ''}
+              <th style="text-align:center;">${currentHistoryMode === 'WEEK' ? 'Điểm trừ còn lại (Sau bù)' : 'Tổng điểm trừ tích lũy'}</th>
+              <th style="text-align:center;">Xếp loại</th>
             </tr>
           </thead>
           <tbody id="historyTableBody"></tbody>
@@ -4575,7 +4592,7 @@ function changeHistoryWeek(idx) {
 }
 
 function filterHistoryRows() {
-  const activeList = weeklyHistory.filter(h => currentHistoryMode === 'WEEK' ? h.type !== 'MONTH' : h.type === 'MONTH').reverse();
+  const activeList = getFilteredHistoryList(currentHistoryMode);
   const currentObj = activeList[selectedHistoryIndex];
   if (!currentObj) return;
 
@@ -4597,7 +4614,7 @@ function filterHistoryRows() {
     else if (realRank === 2) rankBadge = `<span class="rank-pill rank-2">2</span>`;
     else if (realRank === 3) rankBadge = `<span class="rank-pill rank-3">3</span>`;
 
-    const weekStatsCol = currentHistoryMode === 'MONTH' 
+    const weekStatsCol = currentHistoryMode !== 'WEEK' 
       ? `<td style="text-align:center; font-size:0.82rem; font-weight:600;">${c.weekStats || '--'}</td>` 
       : '';
 
@@ -4617,42 +4634,124 @@ function filterHistoryRows() {
   });
 }
 
+// HÀM XÓA & HOÀN TÁC (KHÔI PHỤC) TUẦN LỠ CHỐT NHẦM
 function deleteHistoryWeek(originalIdx) {
   const target = weeklyHistory[originalIdx];
-  if (confirm(`⚠️ Bạn có chắc chắn muốn xóa bản lưu lịch sử của [${target.week}] không?`)) {
-    weeklyHistory.splice(originalIdx, 1);
-    selectedHistoryIndex = 0;
-    localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
-    if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
-    renderHistoryTable();
+  if (!target) return;
+
+  const isWeek = (!target.type || target.type === 'WEEK');
+  if (!confirm(`⚠️ Bạn có chắc chắn muốn xóa bản lưu lịch sử của [${target.week}] không?`)) return;
+
+  // Nếu đây là bản chốt TUẦN, hỏi Admin có muốn khôi phục lại điểm của tuần đó ra Bảng xếp hạng hiện tại không
+  if (isWeek) {
+    const wantRestore = confirm(
+      `🔄 KHÔI PHỤC DỮ LIỆU TUẦN:\n\nBạn có muốn KHÔI PHỤC lại toàn bộ biên bản vi phạm và điểm Sổ đầu bài của [${target.week}] trở về Bảng xếp hạng tuần hiện tại để chấm tiếp không?\n\n- Bấm [OK] để vừa xóa lịch sử, vừa khôi phục điểm về như cũ.\n- Bấm [Hủy / Cancel] nếu chỉ muốn xóa bảng lịch sử này mà vẫn giữ điểm tuần mới ở mức 0.`
+    );
+
+    if (wantRestore) {
+      // 1. Mở khóa các biên bản thuộc tuần này (hoặc toàn bộ biên bản nếu là bản chốt cũ chưa có ID)
+      violations.forEach(v => {
+        if (v.archivedWeekId === target.id || (!v.archivedWeekId && v.isArchived)) {
+          v.isArchived = false;
+          delete v.archivedWeekId;
+        }
+      });
+      updateViolationsLocalAndCloud();
+
+      // 2. Khôi phục lại điểm Sổ đầu bài từ bản chụp sdbSnapshot (nếu có) và mở khóa nghỉ học
+      if (target.sdbSnapshot) {
+        Object.keys(target.sdbSnapshot).forEach(cid => {
+          const snap = target.sdbSnapshot[cid];
+          if (sdbFullData[cid] && snap) {
+            sdbFullData[cid].total = snap.total;
+            sdbFullData[cid].good = snap.good;
+            sdbFullData[cid].fair = snap.fair;
+            sdbFullData[cid].medium = snap.medium;
+            sdbFullData[cid].weak = snap.weak;
+            sdbFullData[cid].poor = snap.poor;
+            sdbFullData[cid].goodScores = snap.goodScores;
+            sdbFullData[cid].fairScores = snap.fairScores;
+            sdbFullData[cid].medScores = snap.medScores;
+            sdbFullData[cid].poorScores = snap.poorScores;
+          }
+        });
+      }
+      Object.keys(sdbFullData).forEach(cid => {
+        (sdbFullData[cid].absences || []).forEach(a => {
+          if (a.archivedWeekId === target.id || (!a.archivedWeekId && a.isArchived)) {
+            a.isArchived = false;
+            delete a.archivedWeekId;
+          }
+        });
+      });
+      updateSdbLocalAndCloud();
+    }
   }
+
+  // Xóa bản ghi khỏi mảng lịch sử
+  weeklyHistory.splice(originalIdx, 1);
+  selectedHistoryIndex = 0;
+  localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+  if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
+
+  renderLeaderboard();
+  renderStudentSearchTable();
+  renderAlerts();
+  renderHistoryTable();
+  alert(`✅ Đã xóa bản chốt [${target.week}] thành công!`);
 }
 
-// 1. HÀM CHỐT TUẦN (Giữ nguyên cơ chế đưa điểm về 0)
+// 1. HÀM CHỐT TUẦN (Có lưu kèm bản chụp SĐB và mã tuần để phục vụ Hoàn tác khi cần)
 function finalizeWeek() {
   const weekName = prompt("Nhập tên tuần muốn chốt (VD: Tuần 1, Tuần 2...):");
   if (!weekName) return;
 
-  if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Dữ liệu cũ vẫn được lưu ngầm để tính cho Tháng và Học Kỳ 1).\n\nBạn có chắc chắn?`)) return;
+  if (!confirm(`⚠️ CẢNH BÁO: Bạn đang chốt thi đua [${weekName}].\nHành động này sẽ ĐƯA ĐIỂM CÁC LỚP VỀ 0 để bắt đầu tuần mới.\n(Nếu lỡ chốt nhầm, bạn có thể bấm nút 'Xóa / Hoàn tác' để khôi phục lại).\n\nBạn có chắc chắn?`)) return;
+
+  const weekId = Date.now();
+
+  // Lưu bản chụp thông số SĐB của 36 lớp trước khi đưa về 0
+  const sdbSnapshot = {};
+  Object.keys(sdbFullData).forEach(cid => {
+    const s = sdbFullData[cid];
+    sdbSnapshot[cid] = {
+      total: s.total, good: s.good, fair: s.fair, medium: s.medium, weak: s.weak, poor: s.poor,
+      goodScores: s.goodScores, fairScores: s.fairScores, medScores: s.medScores, poorScores: s.poorScores
+    };
+  });
 
   weeklyHistory.push({ 
-    id: Date.now(), 
+    id: weekId, 
     type: 'WEEK',
     week: weekName, 
     date: new Date().toLocaleDateString('vi-VN'), 
-    data: calculateClassScores() 
+    data: calculateClassScores(),
+    sdbSnapshot: sdbSnapshot
   });
   localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
   if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
 
-  violations.forEach(v => { if (v.status === 'Đã duyệt') v.isArchived = true; });
+  // Đóng dấu mã tuần vào các biên bản vừa chốt
+  violations.forEach(v => { 
+    if (v.status === 'Đã duyệt' && !v.isArchived) {
+      v.isArchived = true; 
+      v.archivedWeekId = weekId;
+    }
+  });
   updateViolationsLocalAndCloud();
 
   Object.keys(sdbFullData).forEach(cid => {
     let s = sdbFullData[cid];
     s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;
     s.goodScores = 0; s.fairScores = 0; s.medScores = 0; s.poorScores = 0;
-    if (s.absences) s.absences.forEach(a => a.isArchived = true);
+    if (s.absences) {
+      s.absences.forEach(a => {
+        if (!a.isArchived) {
+          a.isArchived = true;
+          a.archivedWeekId = weekId;
+        }
+      });
+    }
   });
   updateSdbLocalAndCloud();
 
@@ -4661,39 +4760,14 @@ function finalizeWeek() {
   renderLeaderboard();
   renderStudentSearchTable();
   renderAlerts();
-  switchTab('history'); // Giữ nguyên ở tab Lịch sử
+  switchTab('history');
   alert(`✅ Đã chốt thi đua [${weekName}] thành công! Bảng xếp hạng đã được làm mới.`);
 }
 
-// 2. HÀM CHỐT THÁNG (Tự động gộp các tuần đã chốt, không làm mất điểm tuần đang chạy)
-function finalizeMonth() {
-  const availableWeeks = weeklyHistory.filter(h => h.type !== 'MONTH');
-  if (availableWeeks.length === 0) {
-    alert("⚠️ Chưa có tuần nào được chốt trong lịch sử! Vui lòng chốt các tuần trong tháng trước khi tổng kết Tháng.");
-    return;
-  }
-
-  const monthName = prompt("Nhập tên Tháng muốn tổng kết (VD: Tháng 9/2026, Tháng 10/2026...):");
-  if (!monthName) return;
-
-  const defaultCount = Math.min(4, availableWeeks.length);
-  const weekCountInput = prompt(
-    `Hiện có ${availableWeeks.length} tuần đã chốt trong lịch sử.\nNhập số tuần gần nhất muốn gộp vào [${monthName}] (Thường là 4 tuần):`, 
-    defaultCount
-  );
-  const numWeeks = parseInt(weekCountInput);
-  if (isNaN(numWeeks) || numWeeks <= 0 || numWeeks > availableWeeks.length) {
-    alert("❌ Số tuần gộp không hợp lệ!");
-    return;
-  }
-
-  // Lấy N tuần gần nhất để cộng dồn
-  const targetWeeks = availableWeeks.slice(-numWeeks);
-  const weekNames = targetWeeks.map(w => w.week).join(', ');
-
-  if (!confirm(`📆 XÁC NHẬN TỔNG KẾT [${monthName.toUpperCase()}]\nHệ thống sẽ cộng dồn kết quả của ${numWeeks} tuần: (${weekNames}).\n\nBạn có chắc chắn muốn chốt bảng tháng này?`)) return;
-
-  const monthData = CLASSES.map(c => {
+// HÀM DÙNG CHUNG ĐỂ TỔNG HỢP N TUẦN THÀNH BẢNG THÁNG HOẶC BẢNG NĂM HỌC
+function aggregateWeeksData(targetWeeks) {
+  const numWeeks = targetWeeks.length;
+  return CLASSES.map(c => {
     let totalPen = 0;
     let counts = { 'Xuất sắc': 0, 'Tốt': 0, 'Khá': 0, 'Đạt': 0, 'Chưa đạt': 0 };
 
@@ -4706,7 +4780,7 @@ function finalizeMonth() {
     });
 
     totalPen = parseFloat(totalPen.toFixed(1));
-    const avgPen = totalPen / numWeeks; // Tính trung bình mỗi tuần trong tháng để xếp loại
+    const avgPen = totalPen / numWeeks;
 
     let rankLabel = 'Xuất sắc', bClass = 'badge-success';
     if (counts['Chưa đạt'] >= 2 || avgPen > 100) { rankLabel = 'Chưa đạt'; bClass = 'badge-danger'; }
@@ -4726,14 +4800,42 @@ function finalizeMonth() {
       bClass
     };
   }).sort((a, b) => a.remainingPenalty - b.remainingPenalty);
+}
+
+// 2. HÀM CHỐT THÁNG
+function finalizeMonth() {
+  const availableWeeks = weeklyHistory.filter(h => !h.type || h.type === 'WEEK');
+  if (availableWeeks.length === 0) {
+    alert("⚠️ Chưa có tuần nào được chốt trong lịch sử! Vui lòng chốt các tuần trong tháng trước khi tổng kết Tháng.");
+    return;
+  }
+
+  const monthName = prompt("Nhập tên Tháng muốn tổng kết (VD: Tháng 9/2026, Tháng 10/2026...):");
+  if (!monthName) return;
+
+  const defaultCount = Math.min(4, availableWeeks.length);
+  const weekCountInput = prompt(
+    `Hiện có ${availableWeeks.length} tuần đã chốt trong lịch sử.\nNhập số tuần gần nhất muốn gộp vào [${monthName}] (Thường là 4 tuần):`, 
+    defaultCount
+  );
+  const numWeeks = parseInt(weekCountInput);
+  if (isNaN(numWeeks) || numWeeks <= 0 || numWeeks > availableWeeks.length) {
+    alert("❌ Số tuần gộp không hợp lệ!");
+    return;
+  }
+
+  const targetWeeks = availableWeeks.slice(-numWeeks);
+  const weekNames = targetWeeks.map(w => w.week).join(', ');
+
+  if (!confirm(`📆 XÁC NHẬN TỔNG KẾT [${monthName.toUpperCase()}]\nHệ thống sẽ cộng dồn kết quả của ${numWeeks} tuần: (${weekNames}).\n\nBạn có chắc chắn muốn chốt bảng tháng này?`)) return;
 
   weeklyHistory.push({
     id: Date.now(),
     type: 'MONTH',
     week: monthName,
-    subTitle: weekNames,
+    subTitle: `${numWeeks} tuần (${weekNames})`,
     date: new Date().toLocaleDateString('vi-VN'),
-    data: monthData
+    data: aggregateWeeksData(targetWeeks)
   });
 
   localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
@@ -4746,20 +4848,67 @@ function finalizeMonth() {
   alert(`🎉 Đã chốt bảng tổng kết [${monthName}] thành công!`);
 }
 
-// 3. HÀM XUẤT EXCEL CHO BẢNG LỊCH SỬ TUẦN HOẶC THÁNG ĐANG XEM
+// 3. HÀM CHỐT HỌC KỲ / CẢ NĂM HỌC
+function finalizeYearOrTerm() {
+  const availableWeeks = weeklyHistory.filter(h => !h.type || h.type === 'WEEK');
+  if (availableWeeks.length === 0) {
+    alert("⚠️ Chưa có tuần nào được chốt trong lịch sử để tổng kết Học kỳ / Năm học!");
+    return;
+  }
+
+  const termName = prompt("Nhập tên Kỳ tổng kết (VD: Học Kỳ I 2026-2027, Học Kỳ II, Cả Năm Học 2026-2027...):", "Cả Năm Học 2026 - 2027");
+  if (!termName) return;
+
+  const weekCountInput = prompt(
+    `Hiện có tổng cộng ${availableWeeks.length} tuần đã chốt trong lịch sử.\nNhập số tuần gần nhất muốn gộp vào [${termName}] (Nhập ${availableWeeks.length} để gộp toàn bộ các tuần đã chốt):`, 
+    availableWeeks.length
+  );
+  const numWeeks = parseInt(weekCountInput);
+  if (isNaN(numWeeks) || numWeeks <= 0 || numWeeks > availableWeeks.length) {
+    alert("❌ Số tuần gộp không hợp lệ!");
+    return;
+  }
+
+  const targetWeeks = availableWeeks.slice(-numWeeks);
+  const firstW = targetWeeks[0].week;
+  const lastW = targetWeeks[targetWeeks.length - 1].week;
+  const summaryRange = numWeeks === 1 ? firstW : `Từ ${firstW} đến ${lastW}`;
+
+  if (!confirm(`🎓 XÁC NHẬN TỔNG KẾT [${termName.toUpperCase()}]\nHệ thống sẽ tổng hợp toàn bộ dữ liệu của ${numWeeks} tuần (${summaryRange}).\n\nBạn có chắc chắn muốn lưu bảng tổng kết này?`)) return;
+
+  weeklyHistory.push({
+    id: Date.now(),
+    type: 'YEAR',
+    week: termName,
+    subTitle: `${numWeeks} tuần (${summaryRange})`,
+    date: new Date().toLocaleDateString('vi-VN'),
+    data: aggregateWeeksData(targetWeeks)
+  });
+
+  localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+  if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
+
+  currentHistoryMode = 'YEAR';
+  selectedHistoryIndex = 0;
+  switchTab('history');
+  renderHistoryTable();
+  alert(`🎓 Đã lưu bảng tổng kết [${termName}] thành công!`);
+}
+
+// 4. HÀM XUẤT EXCEL CHO CẢ TUẦN / THÁNG / NĂM ĐANG XEM
 function exportHistoryCSV() {
-  const activeList = weeklyHistory.filter(h => currentHistoryMode === 'WEEK' ? h.type !== 'MONTH' : h.type === 'MONTH').reverse();
+  const activeList = getFilteredHistoryList(currentHistoryMode);
   const currentObj = activeList[selectedHistoryIndex];
   if (!currentObj) return;
 
-  let csv = currentHistoryMode === 'MONTH'
-    ? "\uFEFFHạng,Chi đoàn,Khối,Sĩ số,Thống kê các tuần,Tổng điểm trừ Tháng,Xếp loại Tháng\n"
+  let csv = currentHistoryMode !== 'WEEK'
+    ? "\uFEFFHạng,Chi đoàn,Khối,Sĩ số,Thống kê các tuần,Tổng điểm trừ tích lũy,Xếp loại\n"
     : "\uFEFFHạng,Chi đoàn,Khối,Sĩ số,Điểm trừ còn lại (Sau bù),Xếp loại Tuần\n";
 
   currentObj.data.forEach((c, idx) => {
     const cGrade = c.grade || (c.id.startsWith('10') ? '10' : (c.id.startsWith('11') ? '11' : '12'));
     const penStr = c.remainingPenalty <= 0 ? `+${Math.abs(c.remainingPenalty)}` : `-${c.remainingPenalty}`;
-    if (currentHistoryMode === 'MONTH') {
+    if (currentHistoryMode !== 'WEEK') {
       csv += `${idx + 1},Chi đoàn ${c.id},${cGrade},${c.size},"${c.weekStatsRaw || ''}",${penStr},${c.rankLabel}\n`;
     } else {
       csv += `${idx + 1},Chi đoàn ${c.id},${cGrade},${c.size},${penStr},${c.rankLabel}\n`;
