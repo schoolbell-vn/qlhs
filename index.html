@@ -371,20 +371,11 @@
         </div>
       </form>
 
-      <!-- Tra cứu tài khoản mẫu nhanh -->
-      <div style="border-top: 1px dashed var(--border); padding-top: 1rem;">
-        <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">CHỌN TÀI KHOẢN MẪU TEST THỬ NHANH:</span>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('admin','admin123')">👑 Bí Thư / Admin</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('sdb_10a1','sdb@10a1')">📖 SĐB 10A1</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('sdb_11a1','sdb@11a1')">📖 SĐB 11A1</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('codo_10a1','codo@10a1')">🚩 Cờ Đỏ chấm 10A1</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('codo_11a1','codo@11a1')">🚩 Cờ Đỏ chấm 11A1</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="quickFill('tnxk_k10','tnxk@k10')">⚡ Tổ Trưởng TNXK K10</button>
-        </div>
-        <div style="margin-top: 0.75rem; text-align: center;">
-          <button type="button" class="btn btn-outline btn-sm" onclick="guestLogin()" style="color: var(--primary-light);">👁️ Vào chế độ Khách (Xem BXH công khai)</button>
-        </div>
+      <!-- Chế độ Khách công khai -->
+      <div style="border-top: 1px dashed var(--border); padding-top: 1rem; text-align: center;">
+        <button type="button" class="btn btn-outline" onclick="guestLogin()" style="width: 100%; color: var(--primary-light); border-color: #bfdbfe; background: #eff6ff;">
+          👁️ Vào chế độ Khách (Xem BXH & Tra cứu công khai)
+        </button>
       </div>
     </div>
   </div>
@@ -405,6 +396,7 @@
       <span class="user-name" id="topBarUserName">Chưa đăng nhập</span>
       <span class="user-role-label" id="topBarUserRole">--</span>
     </div>
+    <button class="btn btn-outline btn-sm" id="btnChangeMyPass" onclick="openChangePassModal(false)" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔑 Đổi MK</button>
     <button class="btn btn-outline btn-sm" onclick="document.getElementById('mqttModal').style.display='flex'" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.5rem; border-radius:6px; cursor:pointer; font-weight:600;">⚙️ Máy chủ</button>
     <button class="btn-logout" onclick="logout()">Đăng Xuất</button>
   </div>
@@ -1220,7 +1212,7 @@
             <option value="sdb">31 Tài khoản Sổ Đầu Bài</option>
             <option value="codo">31 Tài khoản Cờ Đỏ</option>
             <option value="tnxk">3 Tổ Trưởng TNXK Khối</option>
-            <option value="bch">Ban Giám Hiệu / BGH</option>
+            <option value="bgh">Ban Giám Hiệu / BGH</option>
             <option value="admin">Ban Quản Trị (Admin)</option>
           </select>
             <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
@@ -1249,6 +1241,29 @@
       </div>
     </div>
 
+    <!-- KHUNG SAO LƯU & KHÔI PHỤC DỮ LIỆU DỰ PHÒNG -->
+    <div class="card" style="border-left: 5px solid var(--primary);">
+      <div class="card-header">
+        <h2>📦 SAO LƯU & KHÔI PHỤC DỮ LIỆU DỰ PHÒNG (CHỐNG MẤT DỮ LIỆU DRIVE)</h2>
+        <span class="badge badge-info">An toàn tuyệt đối</span>
+      </div>
+      <div class="card-body">
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.85rem; color:#1e40af;">
+          <strong>Khuyên dùng:</strong> Cuối mỗi tuần hoặc mỗi tháng, đồng chí bấm <strong>Tải Bản Sao Lưu Toàn Hệ Thống</strong> để lưu 1 file dự phòng về máy tính / USB. Nếu Google Drive chẳng may bị xóa nhầm toàn bộ, chỉ cần bấm <strong>Khôi Phục Từ File</strong> là toàn bộ dữ liệu trên máy và trên Google Drive sẽ được phục hồi nguyên vẹn 100%.
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary" onclick="exportFullSystemBackup()" style="padding:0.65rem 1.25rem;">
+            📥 Tải Bản Sao Lưu Toàn Hệ Thống (.JSON)
+          </button>
+          <button type="button" class="btn btn-success" onclick="document.getElementById('restoreBackupInput').click()" style="padding:0.65rem 1.25rem;">
+            📤 Khôi Phục Dữ Liệu Từ File Đã Lưu
+          </button>
+          <input type="file" id="restoreBackupInput" accept=".json" style="display:none" onchange="importFullSystemBackup(event)">
+        </div>
+      </div>
+    </div>
+
+    <!-- KHUNG LÀM MỚI HỆ THỐNG CUỐI NĂM -->
     <div class="card">
       <div class="card-header">
         <h2>⚙️ LÀM MỚI HỆ THỐNG (CHUYỂN GIAO NĂM HỌC MỚI)</h2>
@@ -1263,7 +1278,6 @@
     </div>
 
   </div>
-
 
   <!-- TAB: QUẢN LÝ HỌC SINH -->
   <div id="tab-students" class="tab-content">
@@ -1595,6 +1609,39 @@
     <div id="mqttStatusDisplay" style="margin-top:1rem; font-size:0.8rem; font-weight:bold; color:var(--danger); text-align:center;">🔴 Đang ngắt kết nối</div>
   </div>
 </div>
+<!-- HỘP THOẠI ĐỔI MẬT KHẨU CÁ NHÂN (BẮT BUỘC LẦN ĐẦU HOẶC TÙY CHỌN) -->
+<div id="changePassModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); z-index:3500; align-items:center; justify-content:center; padding:1rem;">
+  <div style="background:white; padding:1.5rem; border-radius:14px; width:430px; max-width:100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);">
+    <h3 style="margin-bottom:0.4rem; color:var(--primary); display:flex; align-items:center; gap:0.4rem;">
+      🔐 THIẾT LẬP MẬT KHẨU BẢO MẬT MỚI
+    </h3>
+    <p id="changePassDesc" style="font-size:0.82rem; color:var(--danger); font-weight:600; margin-bottom:1rem; background:#fef2f2; padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #fecaca;">
+      ⚠️ Tài khoản của bạn đang dùng mật khẩu mặc định theo quy luật. Để tránh bị người khác đăng nhập phá dữ liệu, vui lòng đổi mật khẩu riêng ngay bây giờ!
+    </p>
+    <form onsubmit="handleSelfPasswordChange(event)">
+      <div class="form-group" style="margin-bottom:0.85rem;">
+        <label>Tài khoản đang đăng nhập:</label>
+        <input type="text" id="cpUsernameDisplay" class="locked-input" style="font-weight:bold;" readonly>
+      </div>
+      <div class="form-group" style="margin-bottom:0.85rem;">
+        <label>Mật khẩu hiện tại (*):</label>
+        <input type="password" id="cpOldPass" placeholder="Nhập mật khẩu hiện tại..." required>
+      </div>
+      <div class="form-group" style="margin-bottom:0.85rem;">
+        <label>Mật khẩu mới (*, tối thiểu 6 ký tự):</label>
+        <input type="password" id="cpNewPass" placeholder="Nhập mật khẩu mới bí mật..." minlength="6" required>
+      </div>
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label>Nhập lại mật khẩu mới (*):</label>
+        <input type="password" id="cpConfirmPass" placeholder="Nhập lại mật khẩu mới..." minlength="6" required>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button type="button" id="btnCancelChangePass" class="btn btn-outline" onclick="document.getElementById('changePassModal').style.display='none'">Đóng</button>
+        <button type="submit" id="btnSubmitChangePass" class="btn btn-success">💾 Lưu Mật Khẩu Mới</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
 // THẦY DÁN ĐƯỜNG LINK GOOGLE APPS SCRIPT ĐÃ TẠO Ở BƯỚC TRƯỚC VÀO ĐÂY
 const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRBSrAxA2S474ZIQX7-beJB2LvUkhKq5mo7VlqMRavbAUr6U7yiWg1DZny0WnIw/exec";
@@ -1746,21 +1793,28 @@ async function fetchDatabaseFromCloud() {
       }
     }
 
-    // Nạp Biên bản Cờ đỏ / TNXK / BCH
-    if (db.violations) {
-      violations = db.violations;
-      localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    // Nạp Biên bản Cờ đỏ / TNXK / BCH (Bảo vệ: Không cho mảng rỗng trên Drive xóa mất dữ liệu đang có trong máy)
+    if (db.violations && Array.isArray(db.violations)) {
+      if (db.violations.length > 0 || violations.length === 0) {
+        violations = db.violations;
+        localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+      } else if (loggedUser && loggedUser.role === 'admin') {
+        console.warn("Cảnh báo: Dữ liệu biên bản trên Drive đang trống, hệ thống tự động giữ lại dữ liệu trong máy!");
+      }
     }
     
-    // Nạp Điểm Sổ Đầu Bài
-    if (db.sdb) {
+    // Nạp Điểm Sổ Đầu Bài (Bảo vệ chống ghi đè rỗng)
+    if (db.sdb && Object.keys(db.sdb).length > 0) {
       sdbFullData = db.sdb;
       localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
     }
-    // Nạp Lịch sử chốt tuần từ Đám mây
+
+    // Nạp Lịch sử chốt tuần từ Đám mây (Bảo vệ chống ghi đè rỗng)
     if (db.history && Array.isArray(db.history)) {
-      weeklyHistory = db.history;
-      localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+      if (db.history.length > 0 || weeklyHistory.length === 0) {
+        weeklyHistory = db.history;
+        localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+      }
     }
     // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận, tránh lỗi mất tài khoản Cờ đỏ/SĐB)
     if (db.users && Array.isArray(db.users) && db.users.length > 1) {
@@ -2399,6 +2453,16 @@ function setupUserSessionUI() {
   }
   
   updatePendingBadge();
+  // Ẩn nút Đổi MK nếu là Khách, hiện nếu là Cán bộ / Admin
+  const btnChangePass = document.getElementById('btnChangeMyPass');
+  if (btnChangePass) {
+    btnChangePass.style.display = (myRole !== 'guest') ? 'inline-flex' : 'none';
+  }
+
+  // Kiểm tra bảo mật: Nếu cán bộ SĐB / Cờ đỏ / TNXK đang dùng mật khẩu mặc định theo quy luật thì bắt buộc đổi ngay
+  if (myRole !== 'guest' && myRole !== 'admin' && isUsingDefaultPatternPass(loggedUser)) {
+    openChangePassModal(true);
+  }
 
   // 7. Chuyển về đúng thẻ đang xem hoặc thẻ đầu tiên được phép
   const tabBtn = document.getElementById('tabBtn-' + currentTab);
@@ -4521,12 +4585,14 @@ function renderAdminUsersTable() {
 }
 function resetUserPass(idx) {
   const u = systemUsers[idx];
-  let defaultP = 'admin123';
-  if (u.role === 'codo') defaultP = `codo@${u.scope[0].toLowerCase()}`;
-  else if (u.role === 'sdb') defaultP = `sdb@${u.sdbClass.toLowerCase()}`;
-  else if (u.role === 'tnxk') defaultP = `tnxk@k${u.assignedGrade.toLowerCase()}`;
+  let defaultP = '123456';
+  if (u.role === 'admin') defaultP = 'admin123';
+  else if (u.role === 'codo' && u.scope && u.scope[0]) defaultP = `codo@${u.scope[0].toLowerCase()}`;
+  else if (u.role === 'sdb' && u.sdbClass) defaultP = `sdb@${u.sdbClass.toLowerCase()}`;
+  else if (u.role === 'tnxk') defaultP = `${u.username.replace('_', '@')}`;
 
   document.getElementById(`usr_pass_${idx}`).value = defaultP;
+  u.mustChangePass = true; // Đánh dấu bắt buộc đổi lại khi đăng nhập
 }
 
 function saveUserAccountsToStorage() {
@@ -5486,7 +5552,215 @@ async function syncDataForParents() {
     btn.disabled = false;
   }
 }
+// ==================== BẢO MẬT: BẮT BUỘC ĐỔI MẬT KHẨU LẦN ĐẦU & ĐỔI MK CÁ NHÂN ====================
+function isUsingDefaultPatternPass(user) {
+  if (!user || user.role === 'guest') return false;
+  if (user.mustChangePass === true) return true;
+  if (user.mustChangePass === false) return false;
 
+  const p = (user.pass || '').trim().toLowerCase();
+  const u = (user.username || '').trim().toLowerCase();
+
+  // Nhận diện toàn bộ mật khẩu mặc định theo quy luật: sdb@10a1, codo@10a1, tnxk@1, 123456...
+  const defaultPattern = u.replace('_', '@');
+  if (
+    p === defaultPattern ||
+    p === '123456' ||
+    p.startsWith('sdb@') ||
+    p.startsWith('codo@') ||
+    p.startsWith('tnxk@')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function openChangePassModal(isForced) {
+  if (!loggedUser || loggedUser.role === 'guest') return;
+  const modal = document.getElementById('changePassModal');
+  const desc = document.getElementById('changePassDesc');
+  const btnCancel = document.getElementById('btnCancelChangePass');
+
+  document.getElementById('cpUsernameDisplay').value = `${loggedUser.username} (${loggedUser.name})`;
+  document.getElementById('cpOldPass').value = '';
+  document.getElementById('cpNewPass').value = '';
+  document.getElementById('cpConfirmPass').value = '';
+
+  if (isForced) {
+    // Chế độ bắt buộc: Ẩn nút Đóng để học sinh không thể bỏ qua
+    btnCancel.style.display = 'none';
+    desc.style.display = 'block';
+  } else {
+    // Chế độ chủ động bấm nút Đổi MK trên Header: Cho phép bấm Đóng
+    btnCancel.style.display = 'inline-flex';
+    desc.style.display = 'none';
+  }
+
+  modal.style.display = 'flex';
+}
+
+async function handleSelfPasswordChange(e) {
+  e.preventDefault();
+  if (!loggedUser || loggedUser.role === 'guest') return;
+
+  const oldPass = document.getElementById('cpOldPass').value.trim();
+  const newPass = document.getElementById('cpNewPass').value.trim();
+  const confirmPass = document.getElementById('cpConfirmPass').value.trim();
+
+  // Đối chiếu với tài khoản thực tế trong systemUsers
+  const userRecord = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+  const currentActualPass = userRecord ? userRecord.pass : loggedUser.pass;
+
+  if (oldPass !== currentActualPass) {
+    alert('❌ Mật khẩu hiện tại không chính xác!');
+    return;
+  }
+
+  if (newPass.length < 6) {
+    alert('⚠️ Mật khẩu mới phải có ít nhất 6 ký tự!');
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    alert('❌ Mật khẩu mới nhập lại không khớp!');
+    return;
+  }
+
+  // Chặn không cho học sinh đặt lại mật khẩu mới vẫn theo quy luật cũ
+  const tempCheckUser = { ...loggedUser, pass: newPass, mustChangePass: undefined };
+  if (newPass === oldPass || isUsingDefaultPatternPass(tempCheckUser)) {
+    alert('⚠️ Mật khẩu mới vẫn trùng với mật khẩu mặc định hoặc quy luật chung (`sdb@...`, `codo@...`, `123456`). Vui lòng đặt mật khẩu riêng bí mật hơn!');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubmitChangePass');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '⏳ Đang lưu mật khẩu...';
+  btn.disabled = true;
+
+  // Cập nhật vào danh sách tài khoản hệ thống và phiên đăng nhập hiện tại
+  if (userRecord) {
+    userRecord.pass = newPass;
+    userRecord.mustChangePass = false;
+  }
+  loggedUser.pass = newPass;
+  loggedUser.mustChangePass = false;
+  sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+
+  // Lưu vào máy và đồng bộ ngay lên Google Drive (db_users.json)
+  updateUsersLocalAndCloud();
+  if (loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+    renderAdminUsersTable();
+  }
+
+  setTimeout(() => {
+    btn.innerHTML = oldText;
+    btn.disabled = false;
+    document.getElementById('changePassModal').style.display = 'none';
+    alert('✅ Đổi mật khẩu thành công! Từ lần sau bạn hãy dùng mật khẩu mới này để đăng nhập nhé.');
+  }, 600);
+}
+// ==================== SAO LƯU & KHÔI PHỤC TOÀN HỆ THỐNG (FULL BACKUP & RESTORE) ====================
+function exportFullSystemBackup() {
+  if (!loggedUser || loggedUser.role !== 'admin') {
+    alert('⛔ Chỉ Bí thư / Admin mới có quyền tải file sao lưu toàn hệ thống!');
+    return;
+  }
+
+  const backupPackage = {
+    backupDate: new Date().toLocaleString('vi-VN'),
+    school: "THPT YÊN KHÁNH A",
+    students: STUDENTS_DB,
+    users: systemUsers,
+    rules: RULES,
+    tabs: TABS_CONFIG,
+    violations: violations,
+    sdb: sdbFullData,
+    history: weeklyHistory
+  };
+
+  const jsonStr = JSON.stringify(backupPackage, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+  const todayStr = new Date().toISOString().split('T')[0];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `SAO_LUU_THI_DUA_YKA_${todayStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function importFullSystemBackup(event) {
+  if (!loggedUser || loggedUser.role !== 'admin') {
+    alert('⛔ Chỉ Bí thư / Admin mới có quyền khôi phục dữ liệu hệ thống!');
+    return;
+  }
+
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.users || !data.violations || !data.sdb) {
+        alert('❌ File sao lưu không đúng định dạng của Hệ thống Thi đua Yên Khánh A!');
+        return;
+      }
+
+      if (!confirm(`♻️ XÁC NHẬN KHÔI PHỤC DỮ LIỆU\n\nBản sao lưu ngày: ${data.backupDate || 'Không rõ'}\n- Số học sinh: ${(data.students || []).length}\n- Số tài khoản: ${(data.users || []).length}\n- Số biên bản: ${(data.violations || []).length}\n- Số kỳ lịch sử: ${(data.history || []).length}\n\nBạn có chắc chắn muốn nạp lại toàn bộ dữ liệu này và đồng bộ lên Google Drive không?`)) {
+        event.target.value = '';
+        return;
+      }
+
+      // 1. Khôi phục vào bộ nhớ máy tính
+      if (data.students && data.students.length > 0) {
+        STUDENTS_DB = data.students;
+        localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
+        CLASSES = getDynamicClasses();
+      }
+      if (data.users) {
+        systemUsers = data.users;
+        localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+      }
+      if (data.rules) {
+        RULES = data.rules;
+        localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
+      }
+      if (data.tabs) {
+        TABS_CONFIG = data.tabs;
+        localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+      }
+      if (data.violations) {
+        violations = data.violations;
+        localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+      }
+      if (data.sdb) {
+        sdbFullData = data.sdb;
+        localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+      }
+      if (data.history) {
+        weeklyHistory = data.history;
+        localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+      }
+
+      // 2. Đẩy toàn bộ ngược lên Google Drive để phục hồi các file đã mất
+      await syncDataToCloud("db_users.json", systemUsers);
+      await syncDataToCloud("db_rules.json", RULES);
+      await syncDataToCloud("db_tabs.json", TABS_CONFIG);
+      await syncDataToCloud("db_violations.json", violations);
+      await syncDataToCloud("db_sdb.json", sdbFullData);
+      await syncDataToCloud("db_history.json", weeklyHistory);
+
+      alert('✅ KHÔI PHỤC THÀNH CÔNG 100%!\nToàn bộ dữ liệu trên máy và trên Google Drive đã được phục hồi nguyên vẹn.');
+      location.reload();
+    } catch (err) {
+      alert('❌ Lỗi đọc file sao lưu: ' + err.message);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
 </script>
 <datalist id="studentDatalist"></datalist>
 </body>
