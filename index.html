@@ -421,7 +421,7 @@
     <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Đội TNXK</button>
     <button class="tab-btn" id="tabBtn-bch-bonus" onclick="switchTab('bch-bonus')">🎁 BCH Đoàn Cộng Thưởng</button>
     <button class="tab-btn" id="tabBtn-search" onclick="switchTab('search')">👤 Tra Cứu Rèn Luyện Cá Nhân</button>
-    <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện HK I</button>
+    <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện Kỳ & Năm</button>
     <button class="tab-btn" id="tabBtn-hk1-class" onclick="switchTab('hk1-class')">🏆 Tập Thể: Thi Đua HK1 & Cả Năm</button>
     <button class="tab-btn" id="tabBtn-review" onclick="switchTab('review')">
       ⚖️ Duyệt Biên Bản <span class="tab-badge" id="pendingReviewBadge">0</span>
@@ -430,6 +430,7 @@
     <button class="tab-btn" id="tabBtn-history" onclick="switchTab('history')">📚 Lịch Sử Chốt Tuần</button>
     <button class="tab-btn" id="tabBtn-admin-users" onclick="switchTab('admin-users')">👥 Quản Lý Tài Khoản</button>
     <button class="tab-btn" id="tabBtn-rules-config" onclick="switchTab('rules-config')">⚙️ Cấu Hình Tiêu Chí Điểm</button>
+    <button class="tab-btn" id="tabBtn-conduct-config" onclick="switchTab('conduct-config')">🎯 Cấu Hình Xếp Loại RL</button>
     <button class="tab-btn" id="tabBtn-students" onclick="switchTab('students')">🧑‍🎓 Quản Lý Học Sinh</button>
   </nav>
 
@@ -995,54 +996,57 @@
   </div>
 
   
-  <!-- TAB: TỔNG HỢP & BÁO CÁO RÈN LUYỆN HỌC KỲ I (CHO BGH & GVCN) -->
+  <!-- TAB: TỔNG HỢP & BÁO CÁO RÈN LUYỆN HỌC KỲ & CẢ NĂM (CHO BGH & GVCN) -->
   <div id="tab-hk1" class="tab-content">
     <div class="stats-grid">
       <div class="stat-card">
-        <span class="stat-card-title">Học sinh xếp loại TỐT HK1</span>
+        <span class="stat-card-title">Học sinh xếp loại TỐT</span>
         <span class="stat-card-val" id="statGoodHk1" style="color:var(--success);">0</span>
-        <span class="stat-card-desc">Điểm TB Rèn luyện >= 90</span>
+        <span class="stat-card-desc" id="descGoodHk1">Đang tải tiêu chí...</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-title">Học sinh xếp loại KHÁ HK1</span>
+        <span class="stat-card-title">Học sinh xếp loại KHÁ</span>
         <span class="stat-card-val" id="statFairHk1" style="color:var(--primary-light);">0</span>
-        <span class="stat-card-desc">Điểm TB Rèn luyện 75 - 89.9</span>
+        <span class="stat-card-desc" id="descFairHk1">Đang tải tiêu chí...</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-title">Học sinh xếp loại ĐẠT HK1</span>
+        <span class="stat-card-title">Học sinh xếp loại ĐẠT</span>
         <span class="stat-card-val" id="statPassHk1" style="color:var(--warning);">0</span>
-        <span class="stat-card-desc">Điểm TB Rèn luyện 50 - 74.9</span>
+        <span class="stat-card-desc" id="descPassHk1">Đang tải tiêu chí...</span>
       </div>
       <div class="stat-card">
-        <span class="stat-card-title">Học sinh CHƯA ĐẠT HK1</span>
+        <span class="stat-card-title">Học sinh CHƯA ĐẠT</span>
         <span class="stat-card-val" id="statFailHk1" style="color:var(--danger);">0</span>
-        <span class="stat-card-desc">Cần BGH & GVCN họp xét kỷ luật</span>
+        <span class="stat-card-desc" id="descFailHk1">Đang tải tiêu chí...</span>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <h2>🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN HỌC KỲ I (CẢ 18 TUẦN)</h2>
+        <h2 id="hk1TableTitle">🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN CÁ NHÂN</h2>
         <div class="no-print" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <select id="hk1FilterTerm" onchange="renderHk1SummaryTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem; font-weight:700; color:var(--primary); border:2px solid var(--primary-light);">
+            <option value="HK1">📅 Học Kỳ I</option>
+            <option value="HK2">📅 Học Kỳ II</option>
+            <option value="YEAR">🏆 Cả Năm Học</option>
+          </select>
           <select id="hk1FilterClass" onchange="renderHk1SummaryTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem;">
             <option value="ALL">-- Tất cả các lớp --</option>
           </select>
           <select id="hk1FilterStatus" onchange="renderHk1SummaryTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem;">
             <option value="ALL">Tất cả mức xếp loại</option>
             <option value="VIOLATION_ONLY">Chỉ học sinh CÓ VI PHẠM / NGHỈ HỌC</option>
-            <option value="Tốt">Xếp loại Tốt (>=90đ)</option>
-            <option value="Khá">Xếp loại Khá (75-89đ)</option>
-            <option value="Đạt">Xếp loại Đạt (50-74đ)</option>
-            <option value="Chưa đạt">Xếp loại Chưa đạt (<50đ)</option>
+            <option value="Tốt">Xếp loại Tốt</option>
+            <option value="Khá">Xếp loại Khá</option>
+            <option value="Đạt">Xếp loại Đạt</option>
+            <option value="Chưa đạt">Xếp loại Chưa đạt</option>
           </select>
           <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In Báo Cáo GVCN/BGH</button>
-          <button class="btn btn-success btn-sm" onclick="exportHk1Excel()">📥 Xuất Excel HK1 (.CSV)</button>
+          <button class="btn btn-success btn-sm" onclick="exportHk1Excel()">📥 Xuất Excel (.CSV)</button>
         </div>
       </div>
       <div class="card-body">
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.85rem; color:#166534;">
-          <strong>Căn cứ phục vụ Hội đồng Sư phạm:</strong> Tổng hợp đầy đủ 18 tuần học kỳ I gồm: số buổi nghỉ học có phép/không phép (từ SĐB), số lượt vi phạm ATGT cổng trường (từ TNXK), số lượt vi phạm nề nếp trang phục (từ Cờ đỏ) và điểm TB rèn luyện cả kỳ làm căn cứ chuẩn xác cho GVCN và Ban Giám hiệu xếp loại hạnh kiểm học sinh.
-        </div>
+        <div id="hk1RuleDescriptionBox" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.84rem; color:#166534; line-height:1.5;"></div>
         <div class="table-responsive">
           <table>
             <thead>
@@ -1055,12 +1059,12 @@
                 <th style="text-align:center;">Giới tính</th>
                 <th style="text-align:center;">Nghỉ C.Phép</th>
                 <th style="text-align:center;">Nghỉ K.Phép</th>
-                <th style="text-align:center;">Vi phạm nề nếp</th>
-                <th style="text-align:center;">Vi phạm ATGT</th>
-                <th style="text-align:center;">Tổng trừ HK1</th>
-                <th style="text-align:center;">ĐTB Rèn Luyện</th>
+                <th style="text-align:center;">VP Nề nếp</th>
+                <th style="text-align:center;">VP ATGT</th>
+                <th style="text-align:center;">Tổng Trừ / Cộng</th>
+                <th style="text-align:center;">ĐTB Tuần</th>
                 <th style="text-align:center;">Xếp Loại Đề Xuất</th>
-                <th>Chi tiết các vi phạm trong học kỳ I</th>
+                <th>Chi tiết các vi phạm & Lý do khống chế (nếu có)</th>
               </tr>
             </thead>
             <tbody id="hk1SummaryTableBody"></tbody>
@@ -1362,6 +1366,140 @@
       </div>
     </div>
   </div>
+  <!-- TAB: CẤU HÌNH ĐỘNG TIÊU CHÍ XẾP LOẠI RÈN LUYỆN CÁ NHÂN -->
+  <div id="tab-conduct-config" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <h2>🎯 CẤU HÌNH CÔNG THỨC & TIÊU CHÍ KHỐNG CHẾ RÈN LUYỆN CÁ NHÂN</h2>
+        <span class="badge badge-danger">Tùy biến đa trường (Độc quyền Admin)</span>
+      </div>
+      <div class="card-body">
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:0.85rem 1rem; border-radius:8px; margin-bottom:1.25rem; font-size:0.85rem; color:#1e40af;">
+          <strong>Hướng dẫn:</strong> Thiết lập phương pháp tính điểm ở Mục 1 và tự do <strong>Thêm / Sửa / Xóa các tiêu chí khống chế hạnh kiểm</strong> ở Mục 2 theo đúng Quy chế riêng của nhà trường. Khi bấm Lưu, toàn bộ bảng xếp loại của GVCN và Cổng phụ huynh sẽ tự động áp dụng ngay.
+        </div>
+
+        <!-- MỤC 1: CẤU HÌNH PHƯƠNG PHÁP TÍNH ĐIỂM & NGƯỠNG ĐIỂM CHUẨN -->
+        <div class="sub-box">
+          <div class="sub-box-title">
+            <span>1. PHƯƠNG PHÁP TÍNH ĐIỂM & MỐC ĐIỂM XẾP LOẠI CƠ BẢN</span>
+            <span class="badge badge-info">Tùy chọn linh hoạt theo quy chế trường</span>
+          </div>
+          <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Phương pháp tính điểm Rèn luyện Học kỳ / Cả năm:</label>
+              <select id="cfg_calcMethod" style="font-weight:700; color:var(--primary);">
+                <option value="AVG_WEEK">Cách 1: Trung bình cộng các tuần [Điểm gốc - (Tổng trừ ròng / Số tuần)]</option>
+                <option value="TOTAL_TERM">Cách 2: Trừ thẳng vào quỹ điểm kỳ [Điểm gốc - Tổng trừ ròng]</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Điểm gốc (Mỗi tuần hoặc Cả kỳ):</label>
+              <input type="number" id="cfg_weeklyBaseScore" min="10" max="1000" value="100" style="font-weight:bold;">
+            </div>
+            <div class="form-group">
+              <label>Ngày chốt kết thúc Học kỳ I:</label>
+              <input type="date" id="cfg_hk1EndDate" value="2027-01-15">
+            </div>
+            <div class="form-group">
+              <label>Số tuần HK I / HK II / Cả năm:</label>
+              <div style="display:flex; gap:0.35rem;">
+                <input type="number" id="cfg_weeksHk1" title="Số tuần HK1" placeholder="HK1" style="width:33%; text-align:center;">
+                <input type="number" id="cfg_weeksHk2" title="Số tuần HK2" placeholder="HK2" style="width:33%; text-align:center;">
+                <input type="number" id="cfg_weeksYear" title="Số tuần Cả năm" placeholder="Năm" style="width:34%; text-align:center;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Mốc điểm chuẩn: TỐT / KHÁ / ĐẠT (>=):</label>
+              <div style="display:flex; gap:0.35rem;">
+                <input type="number" id="cfg_minAvgGood" title="Điểm tối thiểu loại Tốt" placeholder="Tốt (90)" style="width:33%; text-align:center; font-weight:bold; color:var(--success);">
+                <input type="number" id="cfg_minAvgFair" title="Điểm tối thiểu loại Khá" placeholder="Khá (75)" style="width:33%; text-align:center; font-weight:bold; color:var(--primary-light);">
+                <input type="number" id="cfg_minAvgPass" title="Điểm tối thiểu loại Đạt" placeholder="Đạt (50)" style="width:34%; text-align:center; font-weight:bold; color:var(--warning);">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MỤC 2: THÊM / SỬA TIÊU CHÍ KHỐNG CHẾ HẠNH KIỂM (GIỐNG CẤU HÌNH TIÊU CHÍ ĐIỂM) -->
+        <div class="sub-box">
+          <div class="sub-box-title">
+            <span>2. THÊM / SỬA TIÊU CHÍ KHỐNG CHẾ & HẠ BẬC HẠNH KIỂM</span>
+            <span class="badge badge-warning">Tự động kiểm tra và hạ bậc nếu học sinh vi phạm ngưỡng</span>
+          </div>
+          <div class="form-grid" style="align-items: end;">
+            <div class="form-group">
+              <label>Mã TC (VD: KC01):</label>
+              <input type="text" id="condRuleCode" placeholder="VD: KC01" style="text-transform:uppercase; font-weight:bold;">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Tên / Nội dung tiêu chí khống chế:</label>
+              <input type="text" id="condRuleName" placeholder="VD: Nghỉ không phép từ 1 buổi trở lên (Hạ xuống Khá)">
+            </div>
+            <div class="form-group">
+              <label>Chỉ số kiểm tra (Điều kiện):</label>
+              <select id="condRuleMetric" onchange="onCondMetricChange()">
+                <option value="unexcused_absences">Số buổi nghỉ KHÔNG phép (>=)</option>
+                <option value="excused_absences">Số buổi nghỉ CÓ phép (>=)</option>
+                <option value="net_penalty">Tổng điểm trừ ròng sau bù (>)</option>
+                <option value="single_point">Mắc 1 lỗi nặng có mức trừ (>=)</option>
+                <option value="total_violations">Tổng số lần vi phạm (>=)</option>
+                <option value="traffic_violations">Số lần vi phạm ATGT - Nhóm B (>=)</option>
+                <option value="discipline_violations">Số lần VP Nề nếp - Nhóm A (>=)</option>
+                <option value="specific_code">Mắc Mã lỗi cụ thể (Cách nhau dấu phẩy)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="condThresholdLabel">Giá trị ngưỡng:</label>
+              <input type="text" id="condRuleThreshold" placeholder="VD: 1 hoặc 30 hoặc B09,A10">
+            </div>
+            <div class="form-group">
+              <label>Phạm vi áp dụng:</label>
+              <select id="condRuleScope">
+                <option value="ALL">Cả Học kỳ & Cả năm</option>
+                <option value="TERM">Chỉ áp dụng Học kỳ (HK1, HK2)</option>
+                <option value="YEAR">Chỉ áp dụng Cả năm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Mức hạ bậc / Khống chế:</label>
+              <select id="condRuleMaxRank" style="font-weight:bold;">
+                <option value="Khá">🔵 Tối đa xếp loại KHÁ (Mất loại Tốt)</option>
+                <option value="Đạt">🟡 Tối đa xếp loại ĐẠT (Mất Tốt, Khá)</option>
+                <option value="Chưa đạt">🔴 Hạ thẳng xuống CHƯA ĐẠT (Liệt)</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex; flex-direction:row; gap:0.5rem;">
+              <button type="button" class="btn btn-primary" id="btnAddCondRule" onclick="saveConductRuleItem()" style="flex:1;">➕ Thêm / Lưu TC</button>
+              <button type="button" class="btn btn-outline" id="btnCancelCondRule" onclick="cancelEditConductRule()" style="display:none;">Hủy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BẢNG DANH SÁCH TIÊU CHÍ KHỐNG CHẾ ĐANG ÁP DỤNG -->
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center; width:70px;">Mã</th>
+                <th>Tên tiêu chí khống chế</th>
+                <th>Điều kiện kích hoạt</th>
+                <th style="text-align:center;">Phạm vi</th>
+                <th style="text-align:center;">Mức khống chế tối đa</th>
+                <th style="text-align:center; width:140px;" class="no-print">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="conductRulesTableBody"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-top:1.25rem;">
+          <button type="button" class="btn btn-outline" onclick="resetDefaultConductConfig()">🔄 Khôi Phục Bộ Tiêu Chí Mẫu</button>
+          <button type="button" class="btn btn-success" id="btnSaveConductConfig" onclick="saveConductConfigToCloud()" style="padding:0.75rem 1.5rem; font-size:1rem;">
+            💾 LƯU CẤU HÌNH XẾP LOẠI & ÁP DỤNG TOÀN TRƯỜNG
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- TAB: BÁO ĐỘNG ĐỎ (CHO MỌI NGƯỜI CÙNG XEM) -->
   <div id="tab-alerts" class="tab-content">
     <div class="card" style="border-left: 5px solid var(--danger);">
@@ -1474,6 +1612,8 @@ const ALL_TABS = [
   { id: 'bch-bonus', name: '🎁 BCH Đoàn Cộng Thưởng' },
   { id: 'search', name: '👤 Tra Cứu Rèn Luyện Cá Nhân' },
   { id: 'hk1', name: '🎓 Tổng Kết Hạnh Kiểm HK1 (Cá Nhân)' },
+  { id: 'rules-config', name: '⚙️ Cấu Hình Tiêu Chí Điểm' },
+  { id: 'conduct-config', name: '🎯 Cấu Hình Xếp Loại RL' },
   { id: 'hk1-class', name: '🏆 Xếp Loại Thi Đua Lớp HK1 & Cả Năm' },
   { id: 'review', name: '⚖️ Duyệt Biên Bản & Khiếu nại' },
   { id: 'alerts', name: '🚨 Cảnh Báo Báo Động Đỏ' },
@@ -1596,10 +1736,14 @@ async function fetchDatabaseFromCloud() {
       localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
       initRuleSelects(); // Gắn danh sách mới vào các ô thả xuống của Cờ Đỏ, TNXK, BCH
     }
-    // Nạp Cấu hình Ma trận phân quyền Tab
+    // Nạp Cấu hình Ma trận phân quyền Tab & Cấu hình Xếp loại RL
     if (db.tabs) {
       TABS_CONFIG = db.tabs;
       localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+      if (db.tabs.conductConfig) {
+        CONDUCT_CONFIG = { ...DEFAULT_CONDUCT_CONFIG, ...db.tabs.conductConfig };
+        localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
+      }
     }
 
     // Nạp Biên bản Cờ đỏ / TNXK / BCH
@@ -2266,7 +2410,7 @@ function setupUserSessionUI() {
 }
 
 
-// ==================== TỔNG HỢP VÀ BÁO CÁO RÈN LUYỆN HỌC KỲ I ====================
+// ==================== TỔNG HỢP VÀ BÁO CÁO RÈN LUYỆN HỌC KỲ I, HỌC KỲ II & CẢ NĂM ====================
 function initHk1ClassFilter() {
   const sel = document.getElementById('hk1FilterClass');
   if (!sel || sel.options.length > 1) return;
@@ -2279,116 +2423,468 @@ function initHk1ClassFilter() {
   });
 }
 
+// Hàm kiểm tra ngày vi phạm thuộc Học kỳ I hay Học kỳ II
+// Mặc định: HK1 từ tháng 8 đến 15/01; HK2 từ 16/01 đến tháng 7
+function isDateInSelectedTerm(dateStr, term) {
+  if (!dateStr || term === 'YEAR') return true;
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return true;
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+
+  const isHk1 = (month >= 8 && month <= 12) || (month === 1 && day <= 15);
+  if (term === 'HK1') return isHk1;
+  if (term === 'HK2') return !isHk1;
+  return true;
+}
+
+// ==================== CẤU HÌNH ĐỘNG & TỔNG HỢP RÈN LUYỆN CÁ NHÂN (HK1, HK2, CẢ NĂM) ====================
+// ==================== BỘ QUY TẮC ĐỘNG XẾP LOẠI RÈN LUYỆN CÁ NHÂN (TÙY BIẾN ĐA TRƯỜNG) ====================
+const DEFAULT_CONDUCT_CONFIG = {
+  calcMethod: 'AVG_WEEK', // 'AVG_WEEK' (Trung bình tuần) hoặc 'TOTAL_TERM' (Trừ thẳng quỹ điểm kỳ)
+  weeklyBaseScore: 100,
+  weeksHk1: 18,
+  weeksHk2: 17,
+  weeksYear: 35,
+  hk1EndDate: '2027-01-15',
+  minAvgGood: 90,
+  minAvgFair: 75,
+  minAvgPass: 50,
+  // Danh sách các tiêu chí khống chế mặc định (Admin có thể Thêm / Sửa / Xóa tùy ý trên Web)
+  rules: [
+    { code: 'KC01', name: 'Nghỉ học không phép từ 1 buổi trở lên', metric: 'unexcused_absences', threshold: '1', scope: 'ALL', maxRank: 'Khá' },
+    { code: 'KC02', name: 'Nghỉ không phép từ 2 buổi trở lên (Trong 1 Học kỳ)', metric: 'unexcused_absences', threshold: '2', scope: 'TERM', maxRank: 'Đạt' },
+    { code: 'KC03', name: 'Nghỉ không phép từ 3 buổi trở lên (Trong Cả năm)', metric: 'unexcused_absences', threshold: '3', scope: 'YEAR', maxRank: 'Đạt' },
+    { code: 'KC04', name: 'Nghỉ không phép từ 4 buổi trở lên (Trong 1 Học kỳ)', metric: 'unexcused_absences', threshold: '4', scope: 'TERM', maxRank: 'Chưa đạt' },
+    { code: 'KC05', name: 'Nghỉ không phép từ 7 buổi trở lên (Trong Cả năm)', metric: 'unexcused_absences', threshold: '7', scope: 'YEAR', maxRank: 'Chưa đạt' },
+    { code: 'KC06', name: 'Vi phạm lỗi nặng từ -50đ trở lên (ATGT, Thuốc lá/Vape...)', metric: 'single_point', threshold: '50', scope: 'ALL', maxRank: 'Khá' },
+    { code: 'KC07', name: 'Vi phạm lỗi đặc biệt nghiêm trọng (-100đ: Đánh nhau, Phá hoại...)', metric: 'single_point', threshold: '100', scope: 'ALL', maxRank: 'Chưa đạt' },
+    { code: 'KC08', name: 'Tổng điểm trừ ròng vượt quá 30đ (Học kỳ)', metric: 'net_penalty', threshold: '30', scope: 'TERM', maxRank: 'Khá' },
+    { code: 'KC09', name: 'Tổng điểm trừ ròng vượt quá 50đ (Cả năm)', metric: 'net_penalty', threshold: '50', scope: 'YEAR', maxRank: 'Khá' },
+    { code: 'KC10', name: 'Tổng điểm trừ ròng vượt quá 60đ (Học kỳ)', metric: 'net_penalty', threshold: '60', scope: 'TERM', maxRank: 'Đạt' },
+    { code: 'KC11', name: 'Tổng điểm trừ ròng vượt quá 100đ (Cả năm)', metric: 'net_penalty', threshold: '100', scope: 'YEAR', maxRank: 'Đạt' },
+    { code: 'KC12', name: 'Tổng điểm trừ ròng vượt quá 100đ (Học kỳ)', metric: 'net_penalty', threshold: '100', scope: 'TERM', maxRank: 'Chưa đạt' },
+    { code: 'KC13', name: 'Tổng điểm trừ ròng vượt quá 180đ (Cả năm)', metric: 'net_penalty', threshold: '180', scope: 'YEAR', maxRank: 'Chưa đạt' }
+  ]
+};
+
+let CONDUCT_CONFIG = JSON.parse(localStorage.getItem('yka_conduct_config_v1')) || JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG));
+if (!CONDUCT_CONFIG.rules) CONDUCT_CONFIG.rules = JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG.rules));
+
+let editingConductRuleCode = null;
+
+function getMetricLabel(metric, threshold) {
+  switch (metric) {
+    case 'unexcused_absences': return `Số buổi nghỉ KHÔNG phép >= <strong>${threshold}</strong> buổi`;
+    case 'excused_absences':   return `Số buổi nghỉ CÓ phép >= <strong>${threshold}</strong> buổi`;
+    case 'net_penalty':        return `Tổng điểm trừ ròng > <strong>${threshold}đ</strong>`;
+    case 'single_point':       return `Mắc lỗi có mức trừ >= <strong>-${threshold}đ</strong>`;
+    case 'total_violations':   return `Tổng số lượt vi phạm >= <strong>${threshold}</strong> lần`;
+    case 'traffic_violations': return `Số lần vi phạm ATGT (Nhóm B) >= <strong>${threshold}</strong> lần`;
+    case 'discipline_violations': return `Số lần VP Nề nếp (Nhóm A) >= <strong>${threshold}</strong> lần`;
+    case 'specific_code':      return `Mắc mã lỗi cụ thể: <strong>[${threshold}]</strong>`;
+    default: return `${metric}: ${threshold}`;
+  }
+}
+
+function onCondMetricChange() {
+  const m = document.getElementById('condRuleMetric').value;
+  const lbl = document.getElementById('condThresholdLabel');
+  const inp = document.getElementById('condRuleThreshold');
+  if (m === 'specific_code') {
+    lbl.textContent = 'Nhập các Mã lỗi (cách nhau dấu phẩy):';
+    inp.placeholder = 'VD: B09, B06, A10';
+  } else if (m === 'net_penalty' || m === 'single_point') {
+    lbl.textContent = 'Mức điểm ngưỡng (Nhập số dương):';
+    inp.placeholder = 'VD: 30 hoặc 50';
+  } else {
+    lbl.textContent = 'Số buổi / Số lần vi phạm (>=):';
+    inp.placeholder = 'VD: 1 hoặc 3';
+  }
+}
+
+function renderConductConfigForm() {
+  document.getElementById('cfg_calcMethod').value = CONDUCT_CONFIG.calcMethod || 'AVG_WEEK';
+  document.getElementById('cfg_weeklyBaseScore').value = CONDUCT_CONFIG.weeklyBaseScore ?? 100;
+  document.getElementById('cfg_weeksHk1').value = CONDUCT_CONFIG.weeksHk1 ?? 18;
+  document.getElementById('cfg_weeksHk2').value = CONDUCT_CONFIG.weeksHk2 ?? 17;
+  document.getElementById('cfg_weeksYear').value = CONDUCT_CONFIG.weeksYear ?? 35;
+  document.getElementById('cfg_hk1EndDate').value = CONDUCT_CONFIG.hk1EndDate || '2027-01-15';
+  document.getElementById('cfg_minAvgGood').value = CONDUCT_CONFIG.minAvgGood ?? 90;
+  document.getElementById('cfg_minAvgFair').value = CONDUCT_CONFIG.minAvgFair ?? 75;
+  document.getElementById('cfg_minAvgPass').value = CONDUCT_CONFIG.minAvgPass ?? 50;
+
+  renderConductRulesTable();
+}
+
+function renderConductRulesTable() {
+  const tbody = document.getElementById('conductRulesTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (!CONDUCT_CONFIG.rules || CONDUCT_CONFIG.rules.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Chưa có tiêu chí khống chế nào (Chỉ xét thuần túy theo mốc điểm chuẩn).</td></tr>`;
+    return;
+  }
+
+  CONDUCT_CONFIG.rules.forEach(r => {
+    let scopeBadge = '<span class="badge badge-gray">Kỳ & Năm</span>';
+    if (r.scope === 'TERM') scopeBadge = '<span class="badge badge-info">Chỉ Học kỳ</span>';
+    else if (r.scope === 'YEAR') scopeBadge = '<span class="badge badge-warning">Chỉ Cả năm</span>';
+
+    let rankBadge = '<span class="badge badge-info">Tối đa: Khá</span>';
+    if (r.maxRank === 'Đạt') rankBadge = '<span class="badge badge-warning">Tối đa: Đạt</span>';
+    else if (r.maxRank === 'Chưa đạt') rankBadge = '<span class="badge badge-danger">Hạ: Chưa đạt</span>';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center; font-weight:bold; color:var(--primary);">${r.code}</td>
+      <td><strong>${r.name}</strong></td>
+      <td style="font-size:0.83rem;">${getMetricLabel(r.metric, r.threshold)}</td>
+      <td style="text-align:center;">${scopeBadge}</td>
+      <td style="text-align:center;">${rankBadge}</td>
+      <td style="text-align:center;" class="no-print">
+        <button type="button" class="btn btn-outline btn-sm" onclick="editConductRuleItem('${r.code}')">✏️ Sửa</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteConductRuleItem('${r.code}')">🗑️ Xóa</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function saveConductRuleItem() {
+  const code = document.getElementById('condRuleCode').value.trim().toUpperCase();
+  const name = document.getElementById('condRuleName').value.trim();
+  const metric = document.getElementById('condRuleMetric').value;
+  const threshold = document.getElementById('condRuleThreshold').value.trim().toUpperCase();
+  const scope = document.getElementById('condRuleScope').value;
+  const maxRank = document.getElementById('condRuleMaxRank').value;
+
+  if (!code || !name || !threshold) {
+    alert('⚠️ Vui lòng nhập đầy đủ Mã tiêu chí, Tên tiêu chí và Giá trị ngưỡng!');
+    return;
+  }
+
+  if (editingConductRuleCode) {
+    if (code !== editingConductRuleCode && CONDUCT_CONFIG.rules.some(r => r.code === code)) {
+      alert(`Mã [${code}] đã tồn tại! Vui lòng chọn mã khác.`);
+      return;
+    }
+    const idx = CONDUCT_CONFIG.rules.findIndex(r => r.code === editingConductRuleCode);
+    if (idx > -1) {
+      CONDUCT_CONFIG.rules[idx] = { code, name, metric, threshold, scope, maxRank };
+    }
+    cancelEditConductRule();
+  } else {
+    if (CONDUCT_CONFIG.rules.some(r => r.code === code)) {
+      alert(`Mã [${code}] đã tồn tại! Vui lòng chọn mã khác.`);
+      return;
+    }
+    CONDUCT_CONFIG.rules.push({ code, name, metric, threshold, scope, maxRank });
+    document.getElementById('condRuleCode').value = '';
+    document.getElementById('condRuleName').value = '';
+    document.getElementById('condRuleThreshold').value = '';
+  }
+
+  renderConductRulesTable();
+}
+
+function editConductRuleItem(code) {
+  const r = CONDUCT_CONFIG.rules.find(x => x.code === code);
+  if (!r) return;
+  editingConductRuleCode = code;
+  document.getElementById('condRuleCode').value = r.code;
+  document.getElementById('condRuleName').value = r.name;
+  document.getElementById('condRuleMetric').value = r.metric;
+  onCondMetricChange();
+  document.getElementById('condRuleThreshold').value = r.threshold;
+  document.getElementById('condRuleScope').value = r.scope;
+  document.getElementById('condRuleMaxRank').value = r.maxRank;
+
+  document.getElementById('btnAddCondRule').innerHTML = '💾 Cập Nhật TC';
+  document.getElementById('btnCancelCondRule').style.display = 'inline-flex';
+}
+
+function cancelEditConductRule() {
+  editingConductRuleCode = null;
+  document.getElementById('condRuleCode').value = '';
+  document.getElementById('condRuleName').value = '';
+  document.getElementById('condRuleThreshold').value = '';
+  document.getElementById('btnAddCondRule').innerHTML = '➕ Thêm / Lưu TC';
+  document.getElementById('btnCancelCondRule').style.display = 'none';
+}
+
+function deleteConductRuleItem(code) {
+  if (confirm(`Bạn có chắc muốn xóa tiêu chí khống chế [${code}]?`)) {
+    CONDUCT_CONFIG.rules = CONDUCT_CONFIG.rules.filter(r => r.code !== code);
+    renderConductRulesTable();
+  }
+}
+
+async function saveConductConfigToCloud() {
+  CONDUCT_CONFIG.calcMethod = document.getElementById('cfg_calcMethod').value;
+  CONDUCT_CONFIG.weeklyBaseScore = parseFloat(document.getElementById('cfg_weeklyBaseScore').value) || 100;
+  CONDUCT_CONFIG.weeksHk1 = parseInt(document.getElementById('cfg_weeksHk1').value) || 18;
+  CONDUCT_CONFIG.weeksHk2 = parseInt(document.getElementById('cfg_weeksHk2').value) || 17;
+  CONDUCT_CONFIG.weeksYear = parseInt(document.getElementById('cfg_weeksYear').value) || 35;
+  CONDUCT_CONFIG.hk1EndDate = document.getElementById('cfg_hk1EndDate').value || '2027-01-15';
+  CONDUCT_CONFIG.minAvgGood = parseFloat(document.getElementById('cfg_minAvgGood').value) || 90;
+  CONDUCT_CONFIG.minAvgFair = parseFloat(document.getElementById('cfg_minAvgFair').value) || 75;
+  CONDUCT_CONFIG.minAvgPass = parseFloat(document.getElementById('cfg_minAvgPass').value) || 50;
+
+  localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
+  TABS_CONFIG.conductConfig = CONDUCT_CONFIG;
+  localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+
+  const btn = document.getElementById('btnSaveConductConfig');
+  const oldText = btn ? btn.innerHTML : '💾 LƯU CẤU HÌNH XẾP LOẠI & ÁP DỤNG TOÀN TRƯỜNG';
+  if (btn) {
+    btn.innerHTML = '⏳ Đang đồng bộ lên Đám mây...';
+    btn.style.backgroundColor = 'var(--warning)';
+    btn.disabled = true;
+  }
+
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
+    });
+
+    if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
+
+    if (btn) {
+      btn.innerHTML = '✅ ĐÃ LƯU & ÁP DỤNG THÀNH CÔNG!';
+      btn.style.backgroundColor = 'var(--success)';
+      setTimeout(() => {
+        btn.innerHTML = oldText;
+        btn.style.backgroundColor = '';
+        btn.disabled = false;
+      }, 2500);
+    }
+    alert('✅ Đã lưu Bộ Quy Tắc Xếp Loại Rèn Luyện lên Đám mây thành công!');
+  } catch (e) {
+    console.error(e);
+    alert('⚠️ Đã lưu trên máy nhưng chưa đẩy được lên Đám mây.');
+    if (btn) {
+      btn.innerHTML = oldText;
+      btn.style.backgroundColor = '';
+      btn.disabled = false;
+    }
+  }
+}
+
+function resetDefaultConductConfig() {
+  if (confirm('Khôi phục toàn bộ công thức và danh sách tiêu chí khống chế về mặc định?')) {
+    CONDUCT_CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG));
+    renderConductConfigForm();
+    saveConductConfigToCloud();
+  }
+}
+
+function initHk1ClassFilter() {
+  const sel = document.getElementById('hk1FilterClass');
+  if (!sel || sel.options.length > 1) return;
+  const classes = Array.from(new Set(STUDENTS_DB.map(s => s.classId))).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+  classes.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = `Chi đoàn ${c}`;
+    sel.appendChild(opt);
+  });
+}
+
+function isDateInSelectedTerm(dateStr, term) {
+  if (!dateStr || term === 'YEAR') return true;
+  const cutoff = CONDUCT_CONFIG.hk1EndDate || '2027-01-15';
+  if (term === 'HK1') return dateStr <= cutoff;
+  if (term === 'HK2') return dateStr > cutoff;
+  return true;
+}
+
+// Hàm kiểm tra xem hồ sơ học sinh có vi phạm một Tiêu chí khống chế (rule) hay không
+function isRuleTriggered(studentRec, rule, netPenalty) {
+  const val = parseFloat(rule.threshold) || 0;
+  switch (rule.metric) {
+    case 'unexcused_absences': return studentRec.unexcusedAbsences >= val;
+    case 'excused_absences':   return studentRec.excusedAbsences >= val;
+    case 'net_penalty':        return netPenalty > val;
+    case 'single_point':       return studentRec.maxSinglePenalty >= val;
+    case 'total_violations':   return (studentRec.disciplineViolations + studentRec.trafficViolations) >= val;
+    case 'traffic_violations': return studentRec.trafficViolations >= val;
+    case 'discipline_violations': return studentRec.disciplineViolations >= val;
+    case 'specific_code': {
+      const codes = rule.threshold.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+      return studentRec.violatedCodes.some(c => codes.includes(c));
+    }
+    default: return false;
+  }
+}
+
 function computeHk1StudentRecords() {
+  const cfg = CONDUCT_CONFIG;
+  const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
+  const totalWeeks = term === 'HK1' ? cfg.weeksHk1 : (term === 'HK2' ? cfg.weeksHk2 : cfg.weeksYear);
+  const scopeType = term === 'YEAR' ? 'YEAR' : 'TERM';
+
   const recordMap = {};
 
   STUDENTS_DB.forEach(s => {
-    // SỬ DỤNG MÃ HỌC SINH LÀM KHÓA DUY NHẤT ĐỂ KHÔNG BỊ GHI ĐÈ TRÙNG TÊN
-    const key = s.id;
-    recordMap[key] = {
+    recordMap[s.id] = {
       stt: s.stt, classId: s.classId, id: s.id, name: s.name, dob: s.dob, gender: s.gender,
       excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+      maxSinglePenalty: 0, violatedCodes: [],
       totalPenalties: 0, totalBonuses: 0, details: []
     };
   });
 
-  // 1. Lấy vi phạm nề nếp từ Cờ Đỏ và TNXK
-  violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus).forEach(v => {
-    // Đối chiếu lại tên để lấy ra đúng Mã Học Sinh
+  // 1. Quét biên bản Cờ đỏ, TNXK, BCH Đoàn
+  violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && isDateInSelectedTerm(v.date, term)).forEach(v => {
     const matched = STUDENTS_DB.find(s => s.classId === v.classId && s.name.trim().toLowerCase() === v.student.trim().toLowerCase());
     const key = matched ? matched.id : `${v.classId}_${v.student.trim().toLowerCase()}`;
     
-    let rec = recordMap[key];
-    if (!rec) {
-      rec = {
+    if (!recordMap[key]) {
+      recordMap[key] = {
         stt: 999, classId: v.classId, id: 'Tự do', name: v.student, dob: '', gender: '',
         excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+        maxSinglePenalty: 0, violatedCodes: [],
         totalPenalties: 0, totalBonuses: 0, details: []
       };
-      recordMap[key] = rec;
     }
+    const rec = recordMap[key];
 
     if (v.points < 0) {
-      rec.totalPenalties += Math.abs(v.points);
-      // Cứ mã nào bắt đầu bằng chữ B (Nhóm TNXK) hoặc có chữ "xe", "mũ" thì tính vào cột ATGT
-    if (v.code.startsWith('B') || v.name.toLowerCase().includes('xe') || v.name.toLowerCase().includes('mũ')) {
-      rec.trafficViolations += 1;
-    } else {
-      rec.disciplineViolations += 1;
-    }
+      const absPt = Math.abs(v.points);
+      rec.totalPenalties += absPt;
+      if (absPt > rec.maxSinglePenalty) rec.maxSinglePenalty = absPt;
+      if (v.code) rec.violatedCodes.push(v.code.toUpperCase());
+
+      if (v.code.startsWith('B') || v.name.toLowerCase().includes('xe') || v.name.toLowerCase().includes('mũ')) {
+        rec.trafficViolations += 1;
+      } else {
+        rec.disciplineViolations += 1;
+      }
     } else {
       rec.totalBonuses += v.points;
     }
     rec.details.push(`[${v.date}] [${v.code}] ${v.name} (${v.points > 0 ? '+' : ''}${v.points}đ)`);
   });
 
-  // 2. Lấy số liệu nghỉ học từ SĐB
+  // 2. Quét dữ liệu nghỉ học SĐB
   Object.keys(sdbFullData).forEach(cid => {
     const s = sdbFullData[cid];
-    (s.absences || []).forEach(a => {
+    (s.absences || []).filter(a => isDateInSelectedTerm(a.date, term)).forEach(a => {
       const matched = STUDENTS_DB.find(st => st.classId === cid && st.name.trim().toLowerCase() === a.student.trim().toLowerCase());
       const key = matched ? matched.id : `${cid}_${a.student.trim().toLowerCase()}`;
       
-      let rec = recordMap[key];
-      if (!rec) {
-        rec = {
+      if (!recordMap[key]) {
+        recordMap[key] = {
           stt: 999, classId: cid, id: 'SĐB', name: a.student, dob: '', gender: '',
           excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+          maxSinglePenalty: 0, violatedCodes: [],
           totalPenalties: 0, totalBonuses: 0, details: []
         };
-        recordMap[key] = rec;
       }
+      const rec = recordMap[key];
 
       if (a.type === 'A01') rec.excusedAbsences += 1;
       else rec.unexcusedAbsences += 1;
 
       rec.totalPenalties += Math.abs(a.point);
+      if (a.type) rec.violatedCodes.push(a.type.toUpperCase());
       rec.details.push(`[SĐB ${a.date}] ${a.type === 'A01' ? 'Nghỉ có phép' : 'Nghỉ KHÔNG phép'} (${a.point}đ)`);
     });
   });
 
-  return Object.values(recordMap).map(r => {
-    const score = Math.max(0, Math.min(100, 100 - r.totalPenalties + r.totalBonuses));
-    let rank = 'Tốt';
-    let bClass = 'badge-success';
+  // Thứ tự bậc xếp loại từ cao xuống thấp
+  const rankOrder = { 'Tốt': 4, 'Khá': 3, 'Đạt': 2, 'Chưa đạt': 1 };
+  const badgeMap = { 'Tốt': 'badge-success', 'Khá': 'badge-info', 'Đạt': 'badge-warning', 'Chưa đạt': 'badge-danger' };
 
-    if (r.unexcusedAbsences >= 4 || score < 50) {
-      rank = 'Chưa đạt';
-      bClass = 'badge-danger';
-    } else if (score >= 90 && r.unexcusedAbsences === 0) {
-      rank = 'Tốt';
-      bClass = 'badge-success';
-    } else if (score >= 75) {
-      rank = 'Khá';
-      bClass = 'badge-info';
+  // 3. Tính điểm & Duyệt qua toàn bộ Danh sách Tiêu chí Khống chế Động
+  return Object.values(recordMap).map(r => {
+    const netPenalty = Math.max(0, r.totalPenalties - r.totalBonuses);
+    let finalScoreNum = cfg.weeklyBaseScore;
+
+    if (cfg.calcMethod === 'TOTAL_TERM') {
+      finalScoreNum = Math.max(0, cfg.weeklyBaseScore - (r.totalPenalties - r.totalBonuses));
     } else {
-      rank = 'Đạt';
-      bClass = 'badge-warning';
+      finalScoreNum = Math.max(0, Math.min(cfg.weeklyBaseScore, cfg.weeklyBaseScore - ((r.totalPenalties - r.totalBonuses) / totalWeeks)));
     }
 
-    return { ...r, finalScore: score.toFixed(1), rank, bClass };
+    // Xếp loại ban đầu dựa theo mốc điểm chuẩn
+    let currentRank = 'Chưa đạt';
+    if (finalScoreNum >= cfg.minAvgGood) currentRank = 'Tốt';
+    else if (finalScoreNum >= cfg.minAvgFair) currentRank = 'Khá';
+    else if (finalScoreNum >= cfg.minAvgPass) currentRank = 'Đạt';
+
+    // Duyệt qua các tiêu chí khống chế trong CONDUCT_CONFIG.rules
+    let triggeredNotes = [];
+    const activeRules = (cfg.rules || []).filter(rule => rule.scope === 'ALL' || rule.scope === scopeType);
+
+    activeRules.forEach(rule => {
+      if (isRuleTriggered(r, rule, netPenalty)) {
+        if (rankOrder[rule.maxRank] < rankOrder[currentRank]) {
+          currentRank = rule.maxRank;
+          triggeredNotes.push(`[${rule.code}] ${rule.name} ➔ Hạ xuống ${rule.maxRank}`);
+        } else if (rankOrder[rule.maxRank] === rankOrder[currentRank] && rule.maxRank === 'Chưa đạt') {
+          triggeredNotes.push(`[${rule.code}] ${rule.name}`);
+        }
+      }
+    });
+
+    return {
+      ...r,
+      netPenalty: netPenalty.toFixed(1),
+      finalScore: finalScoreNum.toFixed(1),
+      rank: currentRank,
+      bClass: badgeMap[currentRank] || 'badge-gray',
+      controlNote: triggeredNotes.length > 0 ? `📌 Khống chế: ${triggeredNotes.join(' | ')}` : ''
+    };
   });
 }
 
 function renderHk1SummaryTable() {
   initHk1ClassFilter();
+  const cfg = CONDUCT_CONFIG;
+  const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
   const classFilter = document.getElementById('hk1FilterClass') ? document.getElementById('hk1FilterClass').value : 'ALL';
   const statusFilter = document.getElementById('hk1FilterStatus') ? document.getElementById('hk1FilterStatus').value : 'ALL';
-  const tbody = document.getElementById('hk1SummaryTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const totalWeeks = term === 'HK1' ? cfg.weeksHk1 : (term === 'HK2' ? cfg.weeksHk2 : cfg.weeksYear);
+  const scopeType = term === 'YEAR' ? 'YEAR' : 'TERM';
+
+  const titleEl = document.getElementById('hk1TableTitle');
+  if (titleEl) {
+    if (term === 'HK1') titleEl.textContent = `🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN HỌC KỲ I (${totalWeeks} TUẦN)`;
+    else if (term === 'HK2') titleEl.textContent = `🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN HỌC KỲ II (${totalWeeks} TUẦN)`;
+    else titleEl.textContent = `🏆 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN CẢ NĂM HỌC (${totalWeeks} TUẦN)`;
+  }
+
+  // Hiển thị tóm tắt quy tắc động đang áp dụng
+  const activeRules = (cfg.rules || []).filter(r => r.scope === 'ALL' || r.scope === scopeType);
+  const descBox = document.getElementById('hk1RuleDescriptionBox');
+  if (descBox) {
+    const formulaText = cfg.calcMethod === 'TOTAL_TERM'
+      ? `Quỹ điểm kỳ <strong>${cfg.weeklyBaseScore}đ - Tổng điểm trừ ròng</strong>`
+      : `Trung bình tuần = <strong>${cfg.weeklyBaseScore} - (Tổng trừ ròng / ${totalWeeks} tuần)</strong>`;
+    descBox.innerHTML = `
+      <strong>Công thức đang áp dụng:</strong> ${formulaText} 
+      (Mốc chuẩn: <strong>Tốt</strong> $\\ge$ ${cfg.minAvgGood} • <strong>Khá</strong> $\\ge$ ${cfg.minAvgFair} • <strong>Đạt</strong> $\\ge$ ${cfg.minAvgPass}).<br>
+      <strong>Đang kích hoạt ${activeRules.length} tiêu chí khống chế hạnh kiểm:</strong> 
+      ${activeRules.map(r => `<span class="badge badge-gray" style="margin:2px;">[${r.code}] ${r.name} (&le; ${r.maxRank})</span>`).join(' ')}
+    `;
+  }
 
   const records = computeHk1StudentRecords();
 
-  const goodCount = records.filter(r => r.rank === 'Tốt').length;
-  const fairCount = records.filter(r => r.rank === 'Khá').length;
-  const passCount = records.filter(r => r.rank === 'Đạt').length;
-  const failCount = records.filter(r => r.rank === 'Chưa đạt').length;
+  if (document.getElementById('statGoodHk1')) document.getElementById('statGoodHk1').textContent = records.filter(r => r.rank === 'Tốt').length;
+  if (document.getElementById('statFairHk1')) document.getElementById('statFairHk1').textContent = records.filter(r => r.rank === 'Khá').length;
+  if (document.getElementById('statPassHk1')) document.getElementById('statPassHk1').textContent = records.filter(r => r.rank === 'Đạt').length;
+  if (document.getElementById('statFailHk1')) document.getElementById('statFailHk1').textContent = records.filter(r => r.rank === 'Chưa đạt').length;
 
-  if (document.getElementById('statGoodHk1')) document.getElementById('statGoodHk1').textContent = goodCount;
-  if (document.getElementById('statFairHk1')) document.getElementById('statFairHk1').textContent = fairCount;
-  if (document.getElementById('statPassHk1')) document.getElementById('statPassHk1').textContent = passCount;
-  if (document.getElementById('statFailHk1')) document.getElementById('statFailHk1').textContent = failCount;
+  const tbody = document.getElementById('hk1SummaryTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
 
   const filtered = records.filter(r => {
     const matchClass = classFilter === 'ALL' || r.classId === classFilter;
@@ -2411,6 +2907,10 @@ function renderHk1SummaryTable() {
 
   filtered.forEach((r, idx) => {
     const tr = document.createElement('tr');
+    const detailHtml = r.details.length > 0 
+      ? r.details.join('; ') + (r.controlNote ? `<br><strong style="color:var(--danger);">${r.controlNote}</strong>` : '')
+      : '<span style="color:var(--text-muted);">Không vi phạm</span>';
+
     tr.innerHTML = `
       <td style="text-align:center;">${idx + 1}</td>
       <td style="text-align:center;"><strong>${r.classId}</strong></td>
@@ -2422,35 +2922,39 @@ function renderHk1SummaryTable() {
       <td style="text-align:center; font-weight:bold; color:${r.unexcusedAbsences > 0 ? 'var(--danger)' : 'inherit'};">${r.unexcusedAbsences}</td>
       <td style="text-align:center; color:${r.disciplineViolations > 0 ? 'var(--danger)' : 'inherit'};">${r.disciplineViolations}</td>
       <td style="text-align:center; color:${r.trafficViolations > 0 ? 'var(--danger)' : 'inherit'};">${r.trafficViolations}</td>
-      <td style="text-align:center; font-weight:bold; color:${r.totalPenalties > 0 ? 'var(--danger)' : 'inherit'};">-${r.totalPenalties}đ</td>
+      <td style="text-align:center; font-weight:bold;">
+        <span style="color:${r.totalPenalties > 0 ? 'var(--danger)' : 'var(--text-muted)'};">-${r.totalPenalties}đ</span>
+        ${r.totalBonuses > 0 ? ` / <span style="color:var(--success);">+${r.totalBonuses}đ</span>` : ''}
+      </td>
       <td style="text-align:center; font-weight:800; font-size:1.05rem; color:var(--primary);">${r.finalScore}</td>
       <td style="text-align:center;"><span class="badge ${r.bClass}">${r.rank}</span></td>
-      <td style="font-size:0.8rem; max-width:280px;">${r.details.length > 0 ? r.details.join('; ') : '<span style="color:var(--text-muted);">Không vi phạm</span>'}</td>
+      <td style="font-size:0.8rem; max-width:320px;">${detailHtml}</td>
     `;
     tbody.appendChild(tr);
   });
 }
 
 function exportHk1Excel() {
+  const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
   const records = computeHk1StudentRecords();
   const classFilter = document.getElementById('hk1FilterClass') ? document.getElementById('hk1FilterClass').value : 'ALL';
   const filtered = records.filter(r => classFilter === 'ALL' || r.classId === classFilter);
 
-  let csv = "\uFEFFSTT,Lớp,Mã học sinh,Họ và tên,Ngày sinh,Giới tính,Nghỉ có phép,Nghỉ không phép,Lượt vi phạm nề nếp,Lượt vi phạm ATGT,Tổng trừ HK1,ĐTB Rèn luyện HK1,Xếp loại đề xuất,Chi tiết vi phạm\n";
+  let csv = `\uFEFFSTT,Lớp,Mã học sinh,Họ và tên,Ngày sinh,Giới tính,Nghỉ có phép,Nghỉ không phép,Lượt VP Nề nếp,Lượt VP ATGT,Tổng điểm trừ,Tổng điểm cộng,ĐTB Rèn luyện (${term}),Xếp loại đề xuất,Chi tiết vi phạm & Ghi chú khống chế\n`;
   filtered.forEach((r, idx) => {
-    const detailSanitized = `"${r.details.join('; ').replace(/"/g, '""')}"`;
-    csv += `${idx + 1},${r.classId},${r.id},"${r.name}",${r.dob},${r.gender},${r.excusedAbsences},${r.unexcusedAbsences},${r.disciplineViolations},${r.trafficViolations},-${r.totalPenalties},${r.finalScore},${r.rank},${detailSanitized}\n`;
+    const fullNote = r.details.join('; ') + (r.controlNote ? ` [${r.controlNote}]` : '');
+    const detailSanitized = `"${fullNote.replace(/"/g, '""')}"`;
+    csv += `${idx + 1},${r.classId},${r.id},"${r.name}",${r.dob},${r.gender},${r.excusedAbsences},${r.unexcusedAbsences},${r.disciplineViolations},${r.trafficViolations},-${r.totalPenalties},+${r.totalBonuses},${r.finalScore},${r.rank},${detailSanitized}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Danh_Sach_Xep_Loai_Ren_Luyen_HK1_THPT_Yen_Khanh_A_${classFilter}.csv`;
+  a.download = `Xep_Loai_Ren_Luyen_Ca_Nhan_${term}_THPT_Yen_Khanh_A_${classFilter}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
-
 
 // ==================== QUẢN LÝ CỘNG THƯỞNG HOẠT ĐỘNG CỦA BCH ĐOÀN TRƯỜNG ====================
 function setupBchBonusForm() {
@@ -2784,6 +3288,7 @@ function switchTab(tabId) {
   if (tabId === 'review') renderReviewTable();
   if (tabId === 'students') renderStudentManagementTable();
   if (tabId === 'rules-config') renderRulesConfigTable();
+  if (tabId === 'conduct-config') renderConductConfigForm();
   if (tabId === 'history') renderHistoryTable();
 }
 
