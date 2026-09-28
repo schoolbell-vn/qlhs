@@ -1816,30 +1816,26 @@ async function fetchDatabaseFromCloud() {
         localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
       }
     }
-    // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận, tránh lỗi mất tài khoản Cờ đỏ/SĐB)
+   // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận)
     if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       systemUsers = db.users;
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-    } 
-    // Nạp Danh sách Tài khoản
-    if (db.users && Array.isArray(db.users) && db.users.length > 1) {
-      systemUsers = db.users;
-      localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+
+      // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
+      if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
+        const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+        if (cloudUser && cloudUser.pass !== loggedUser.pass && !isUsingDefaultPatternPass(loggedUser)) {
+          cloudUser.pass = loggedUser.pass;
+          cloudUser.mustChangePass = false;
+          updateSinglePassToCloud(loggedUser.username, loggedUser.pass);
+          publishUpdate('UPDATE_USER_PASS', { username: loggedUser.username, newPass: loggedUser.pass });
+        }
+      }
+
       if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
         renderAdminUsersTable(); // Vẽ lại bảng ngay khi lấy dữ liệu từ Drive về
       }
-    }
-    // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
-    if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
-      const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
-      if (cloudUser && cloudUser.pass !== loggedUser.pass && !isUsingDefaultPatternPass(loggedUser)) {
-        cloudUser.pass = loggedUser.pass;
-        cloudUser.mustChangePass = false;
-        updateUsersLocalAndCloud();
-        publishUpdate('UPDATE_USER_PASS', { username: loggedUser.username, newPass: loggedUser.pass });
-      }
-    }
-    else {
+    } else {
       // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ tài khoản và đẩy lên Đám mây
       if (!systemUsers || systemUsers.length <= 1) {
         systemUsers = generateDefaultUsers();
@@ -2278,7 +2274,6 @@ function connectMqtt() {
     }
 
     // ---- ĐỒNG BỘ ĐIỂM SỐ VÀ BIÊN BẢN LỖI ----
-    // ---- ĐỒNG BỘ ĐIỂM SỐ VÀ BIÊN BẢN LỖI ----
     if (topic === MQTT_TOPIC) {
       try {
         const payload = JSON.parse(message.toString());
@@ -2294,6 +2289,10 @@ function connectMqtt() {
           const v = violations.find(x => x.id === payload.data.id);
           if (v) v.status = payload.data.status;
           localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+        }
+        else if (payload.action === 'UPDATE_SDB') {
+          sdbFullData[payload.data.classId] = payload.data.sdbData;
+          localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
         }
         else if (payload.action === 'UPDATE_USER_PASS') {
           const targetUser = systemUsers.find(u => u.username.toLowerCase() === payload.data.username.toLowerCase());
@@ -2322,8 +2321,7 @@ function connectMqtt() {
         if(typeof renderReviewTable === 'function') renderReviewTable();
         updatePendingBadge();
       } catch (e) { console.error("Lỗi đọc tin MQTT", e); }
-    }
-  });
+    });
 }
 
 // 4. Hàm bắn tin nhắn đi
@@ -3138,7 +3136,7 @@ function handleBchBonusSubmit(e) {
   };
 
   violations.push(newBonusRecord);
-  appendSingleViolationToCloud(newV);
+  appendSingleViolationToCloud(newBonusRecord);
 
   alert(`🎖️ BCH Đoàn trường đã phê duyệt và cộng thưởng +${points} điểm cho Chi đoàn ${classId}!\nNội dung: ${newBonusRecord.name}\nCăn cứ: ${evidence}`);
 
