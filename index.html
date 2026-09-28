@@ -3138,7 +3138,7 @@ function handleBchBonusSubmit(e) {
   };
 
   violations.push(newBonusRecord);
-  updateViolationsLocalAndCloud();
+  appendSingleViolationToCloud(newV);
 
   alert(`🎖️ BCH Đoàn trường đã phê duyệt và cộng thưởng +${points} điểm cho Chi đoàn ${classId}!\nNội dung: ${newBonusRecord.name}\nCăn cứ: ${evidence}`);
 
@@ -3675,7 +3675,7 @@ function saveFullSdbData() {
       sdbFullData[targetClass].updatedBy = loggedUser.name;
       sdbFullData[targetClass].updatedAt = new Date().toLocaleDateString('vi-VN');
 
-      updateSdbLocalAndCloud();
+      updateSingleClassSdbToCloud(targetClass, sdbFullData[targetClass]);
       
       // Bắn lệnh cập nhật lên máy chủ
       publishUpdate('UPDATE_SDB', { classId: targetClass, sdbData: sdbFullData[targetClass] });
@@ -3898,7 +3898,44 @@ async function syncDataToCloud(fileName, content) {
     });
   } catch(e) { console.error("Lỗi lưu lên cloud:", e); }
 }
+// Gửi lẻ 1 biên bản mới (Chống mất biên bản khi Cờ đỏ & TNXK chấm đồng loạt)
+async function appendSingleViolationToCloud(newRecord) {
+  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "append_violation", record: newRecord })
+    });
+  } catch(e) { console.error("Lỗi lưu biên bản lẻ:", e); }
+}
 
+// Gửi lẻ Sổ đầu bài của 1 lớp (36 lớp lưu cùng lúc không đè nhau)
+async function updateSingleClassSdbToCloud(classId, classData) {
+  localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "update_single_sdb", classId: classId, classData: classData })
+    });
+  } catch(e) { console.error("Lỗi lưu SĐB lẻ:", e); }
+}
+
+// Gửi lẻ 1 mật khẩu vừa đổi (100 HS đổi cùng lúc không đè nhau)
+async function updateSinglePassToCloud(username, newPass) {
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "update_single_pass", username: username, newPass: newPass })
+    });
+  } catch(e) { console.error("Lỗi lưu mật khẩu lẻ:", e); }
+}
 
 // 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
 function updateViolationsLocalAndCloud() {
@@ -4032,7 +4069,7 @@ async function handleCodoViolationSubmit(e) {
 
     // 3. Ưu tiên 1: Lưu cục bộ ngay lập tức để an toàn dữ liệu
     violations.push(newV);
-    updateViolationsLocalAndCloud();
+    appendSingleViolationToCloud(newV);
 
     // 4. Ưu tiên 2: Bắn qua MQTT (Nếu rớt mạng MQTT thì bỏ qua, hệ thống vẫn lưu cục bộ)
     if (mqttClient && mqttClient.connected) {
@@ -4110,7 +4147,7 @@ async function handleTnxkViolationSubmit(e) {
 
     // 3. Ưu tiên 1: Lưu cục bộ (LocalStorage)
     violations.push(newV);
-    updateViolationsLocalAndCloud();
+    appendSingleViolationToCloud(newV);
 
     // 4. Ưu tiên 2: MQTT (Giảm phụ thuộc, chỉ coi là tool đẩy thông báo)
     if (mqttClient && mqttClient.connected) {
@@ -5705,7 +5742,7 @@ async function handleSelfPasswordChange(e) {
 
     // 3. Lưu lên Google Drive và bắn MQTT tức thời sang máy Admin
     localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-    await syncDataToCloud("db_users.json", systemUsers);
+    await updateSinglePassToCloud(loggedUser.username, newPass);
 
     publishUpdate('UPDATE_USER_PASS', {
       username: loggedUser.username,
