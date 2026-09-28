@@ -4625,13 +4625,18 @@ function renderAdminUsersTable() {
 function resetUserPass(idx) {
   const u = systemUsers[idx];
   let defaultP = '123456';
-  if (u.role === 'admin') defaultP = 'admin123';
-  else if (u.role === 'codo' && u.scope && u.scope[0]) defaultP = `codo@${u.scope[0].toLowerCase()}`;
-  else if (u.role === 'sdb' && u.sdbClass) defaultP = `sdb@${u.sdbClass.toLowerCase()}`;
-  else if (u.role === 'tnxk') defaultP = `${u.username.replace('_', '@')}`;
+  
+  if (u.role === 'admin') {
+    defaultP = 'admin123';
+  } else if (u.username && u.username.includes('_')) {
+    // Luôn lấy theo tên tài khoản gốc: 
+    // VD: codo_10a6 -> codo@10a6 | sdb_10a1 -> sdb@10a1 | tnxk_1 -> tnxk@1
+    defaultP = u.username.trim().toLowerCase().replace('_', '@');
+  }
 
   document.getElementById(`usr_pass_${idx}`).value = defaultP;
-  u.mustChangePass = true; // Đánh dấu bắt buộc đổi lại khi đăng nhập
+  u.pass = defaultP;
+  u.mustChangePass = true; // Bắt buộc học sinh đổi mật khẩu riêng khi đăng nhập lại
 }
 
 function saveUserAccountsToStorage() {
