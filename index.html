@@ -3546,8 +3546,20 @@ function handleImagePreview(inputEl, previewBoxId) {
   }
 }
 
+// Hàm tự động chuyển link Google Drive cũ sang chuẩn Thumbnail mới (hiển thị được 100% trên mọi trình duyệt)
+function getDirectDriveImgUrl(url) {
+  if (!url) return '';
+  // Bắt mã ID của file ảnh trên Google Drive
+  const match = url.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
+  }
+  return url;
+}
+
 function openImgModal(src) {
-  document.getElementById('imgModalSrc').src = src;
+  const directUrl = getDirectDriveImgUrl(src);
+  document.getElementById('imgModalSrc').src = directUrl;
   document.getElementById('imgModal').classList.add('open');
 }
 function closeImgModal() {
@@ -4341,7 +4353,7 @@ function renderCodoLogsTable() {
           v.imageEvidence
             ? `<div style="margin-top:0.25rem;">
                  <img
-                   src="${v.imageEvidence}"
+                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
                    class="evidence-img-thumb"
                    onclick="openImgModal('${v.imageEvidence}')"
                    title="Xem ảnh">
@@ -4483,7 +4495,7 @@ function renderTnxkLogsTable() {
           v.imageEvidence
             ? `<div style="margin-top:0.25rem;">
                  <img
-                   src="${v.imageEvidence}"
+                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
                    class="evidence-img-thumb"
                    onclick="openImgModal('${v.imageEvidence}')"
                    title="Xem ảnh">
@@ -4537,7 +4549,7 @@ function renderReviewTable() {
       <td style="font-size:0.8rem;">
         <div>${v.evidence}</div>
         ${v.linkEvidence ? `<div style="margin-top:0.25rem;"><a href="${v.linkEvidence}" target="_blank" style="color:var(--primary-light); font-weight:600;">🔗 Link Minh Chứng</a></div>` : ''}
-        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${v.imageEvidence}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Xem ảnh"></div>` : ''}
+        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${getDirectDriveImgUrl(v.imageEvidence)}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Bấm để phóng to ảnh" onerror="this.style.display='none'"> <a href="${v.imageEvidence}" target="_blank" style="font-size:0.75rem; color:var(--primary-light); font-weight:600; display:inline-block;">🔍 Xem ảnh</a></div>` : ''}
       </td>
       <td style="font-size:0.8rem;">${v.recorder}</td>
       <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status || 'Chờ duyệt'}</span></td>
