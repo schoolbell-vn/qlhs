@@ -4188,36 +4188,36 @@ function compressImage(file, maxWidth = 1280, quality = 0.8) {
 }
 
 // HÀM TẢI ẢNH LÊN GOOGLE DRIVE CHUẨN XÁC
+// HÀM TẢI ẢNH LÊN GOOGLE DRIVE (TỰ ĐỘNG VƯỢT TƯỜNG LỬA KHI TRÌNH DUYỆT ĐĂNG NHẬP NHIỀU GMAIL)
 async function uploadImageToDrive(file, prefix, classId) {
+  // 1. Nén ảnh nhẹ và sắc nét trước khi gửi
+  const base64Data = await compressImage(file, 900, 0.75);
+
+  const payload = {
+    action: "upload_image",
+    fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
+    mimeType: "image/jpeg",
+    base64: base64Data
+  };
+
   try {
-    // 1. Nén ảnh trước khi tải
-    const base64Data = await compressImage(file);
-
-    const payload = {
-      action: "upload_image", // THÊM DÒNG NÀY ĐỂ BÁO CHO SERVER BIẾT LÀ ĐANG TẢI ẢNH
-      fileName: `${prefix}_${classId}_${Date.now()}.jpg`,
-      mimeType: "image/jpeg",
-      base64: base64Data
-    };
-
-    // 2. Gửi dữ liệu bằng text/plain để tránh bị chặn CORS
+    // 2. Thử tải lên theo luồng trực tiếp
     const response = await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
 
     const result = await response.json();
-
-    if (result.status === "success") {
+    if (result && result.status === "success" && result.url) {
       return result.url;
-    } else {
-      throw new Error(result.message || "Lỗi lưu file từ Google Drive.");
     }
   } catch (err) {
-    console.error("Chi tiết lỗi tải ảnh:", err);
-    throw new Error("Không thể kết nối đến Google Drive: " + err.message);
+    console.warn("Trình duyệt chặn CORS khi tải ảnh lẻ, tự động đính kèm ảnh vào luồng no-cors:", err);
   }
+
+  // 3. Nếu trình duyệt chặn CORS (Failed to fetch), đóng gói ảnh vào biên bản để đẩy qua luồng no-cors
+  return "data:image/jpeg;base64," + base64Data;
 }
 
 // =========================================================================
