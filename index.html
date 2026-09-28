@@ -1191,6 +1191,7 @@
                 <th style="text-align:center;">📖 Sổ Đầu Bài</th>
                 <th style="text-align:center;">🚩 Cờ Đỏ</th>
                 <th style="text-align:center;">⚡ TNXK</th>
+                <th style="text-align:center;">👩‍🏫 GVCN</th>
                 <th style="text-align:center;">🏫 BGH / BCH</th>
                 <th style="text-align:center;">👁️ Khách (Chỉ xem)</th>
               </tr>
@@ -1205,19 +1206,20 @@
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>👥 DANH SÁCH TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 chi đoàn</h2>
-        <div style="display:flex; gap:0.5rem;" class="no-print">
+        <h2>👥 DANH SÁCH TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 CHI ĐOÀN</h2>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" class="no-print">
           <select id="userFilterRole" onchange="renderAdminUsersTable()" style="font-size:0.82rem; padding:0.3rem 0.6rem;">
-            <option value="ALL">Tất cả  khoản</option>
-            <option value="sdb">31 Tài khoản Sổ Đầu Bài</option>
-            <option value="codo">31 Tài khoản Cờ Đỏ</option>
-            <option value="tnxk">3 Tổ Trưởng TNXK Khối</option>
-            <option value="bgh">Ban Giám Hiệu / BGH</option>
-            <option value="admin">Ban Quản Trị (Admin)</option>
+            <option value="ALL">Tất cả tài khoản (121 TK)</option>
+            <option value="sdb">📖 36 Tài khoản Sổ Đầu Bài</option>
+            <option value="codo">🚩 36 Tài khoản Cờ Đỏ</option>
+            <option value="gvcn">👩‍🏫 36 Tài khoản GVCN</option>
+            <option value="tnxk">⚡ 12 Tài khoản Đội TNXK</option>
+            <option value="bgh">🏫 Ban Giám Hiệu / BCH</option>
+            <option value="admin">👑 Ban Quản Trị (Admin)</option>
           </select>
-            <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
-            <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
-          </div>
+          <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
+          <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
+        </div>
       </div>
       <div class="card-body">
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
@@ -1649,6 +1651,7 @@ const MASTER_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrAzSRB
 let STUDENTS_DB = JSON.parse(localStorage.getItem('yka_students_db_v1')) || [];
 let CLASSES = getDynamicClasses();
 // =========================================================
+// =========================================================
 // 3. MA TRẬN PHÂN QUYỀN GIAO DIỆN (UI CONFIG)
 // =========================================================
 const ALL_TABS = [
@@ -1658,48 +1661,54 @@ const ALL_TABS = [
   { id: 'tnxk', name: '⚡ Chấm TNXK (Chuyên đề, ATGT)' },
   { id: 'bch-bonus', name: '🎁 BCH Đoàn Cộng Thưởng' },
   { id: 'search', name: '👤 Tra Cứu Rèn Luyện Cá Nhân' },
-  { id: 'hk1', name: '🎓 Tổng Kết Hạnh Kiểm HK1 (Cá Nhân)' },
-  { id: 'rules-config', name: '⚙️ Cấu Hình Tiêu Chí Điểm' },
-  { id: 'conduct-config', name: '🎯 Cấu Hình Xếp Loại RL' },
+  { id: 'hk1', name: '🎓 Tổng Kết Hạnh Kiểm Kỳ & Năm (Cá Nhân)' },
   { id: 'hk1-class', name: '🏆 Xếp Loại Thi Đua Lớp HK1 & Cả Năm' },
   { id: 'review', name: '⚖️ Duyệt Biên Bản & Khiếu nại' },
   { id: 'alerts', name: '🚨 Cảnh Báo Báo Động Đỏ' },
   { id: 'history', name: '📚 Tra Cứu Lịch Sử Chốt Tuần' },
   { id: 'rules-config', name: '⚙️ Cấu Hình Tiêu Chí Điểm' },
+  { id: 'conduct-config', name: '🎯 Cấu Hình Xếp Loại RL' },
   { id: 'students', name: '🧑‍🎓 Quản Lý Học Sinh' },
   { id: 'admin-users', name: '👥 Quản Lý Tài Khoản & Phân Quyền' }
 ];
 
-// Dữ liệu phân quyền mặc định nếu Google Drive bị trống
+// Dữ liệu phân quyền mặc định
 let TABS_CONFIG = JSON.parse(localStorage.getItem('yka_tabs_config_v1')) || {
   'sdb':   ['board', 'sdb', 'search', 'hk1', 'alerts', 'history'],
   'codo':  ['board', 'codo', 'search', 'hk1', 'review', 'alerts', 'history'],
   'tnxk':  ['board', 'tnxk', 'search', 'hk1', 'review', 'alerts', 'history'],
+  'gvcn':  ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'],
   'bgh':   ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'],
   'guest': ['board', 'search', 'hk1', 'review', 'alerts', 'history']
-  
 };
+// Đảm bảo nếu bộ nhớ cũ chưa có mảng gvcn thì tự động khởi tạo
+if (!TABS_CONFIG['gvcn']) {
+  TABS_CONFIG['gvcn'] = ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'];
+}
 
 function renderTabsConfigMatrix() {
   const tbody = document.getElementById('tabsConfigBody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  if (!TABS_CONFIG['gvcn']) TABS_CONFIG['gvcn'] = ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'];
+
   ALL_TABS.forEach(tab => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${tab.name}</strong></td>
-      <td style="text-align:center;"><input type="checkbox" id="chk_sdb_${tab.id}" ${TABS_CONFIG['sdb'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
-      <td style="text-align:center;"><input type="checkbox" id="chk_codo_${tab.id}" ${TABS_CONFIG['codo'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
-      <td style="text-align:center;"><input type="checkbox" id="chk_tnxk_${tab.id}" ${TABS_CONFIG['tnxk'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
-      <td style="text-align:center;"><input type="checkbox" id="chk_bgh_${tab.id}" ${TABS_CONFIG['bgh'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
-      <td style="text-align:center;"><input type="checkbox" id="chk_guest_${tab.id}" ${TABS_CONFIG['guest'].includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_sdb_${tab.id}" ${(TABS_CONFIG['sdb'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_codo_${tab.id}" ${(TABS_CONFIG['codo'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_tnxk_${tab.id}" ${(TABS_CONFIG['tnxk'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_gvcn_${tab.id}" ${(TABS_CONFIG['gvcn'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_bgh_${tab.id}" ${(TABS_CONFIG['bgh'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
+      <td style="text-align:center;"><input type="checkbox" id="chk_guest_${tab.id}" ${(TABS_CONFIG['guest'] || []).includes(tab.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></td>
     `;
     tbody.appendChild(tr);
   });
 }
 
 async function saveTabsConfig() {
-  const roles = ['sdb', 'codo', 'tnxk', 'guest', 'bgh'];
+  const roles = ['sdb', 'codo', 'tnxk', 'gvcn', 'bgh', 'guest'];
   roles.forEach(role => {
     TABS_CONFIG[role] = [];
     ALL_TABS.forEach(tab => {
@@ -1709,7 +1718,6 @@ async function saveTabsConfig() {
   });
   localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
   
-  // Tìm nút bấm để tạo hiệu ứng chuyển đổi trạng thái
   const btn = document.querySelector('button[onclick="saveTabsConfig()"]');
   const oldText = btn ? btn.innerHTML : "💾 Lưu Ma Trận Phân Quyền";
   if (btn) {
@@ -1721,12 +1729,12 @@ async function saveTabsConfig() {
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', // Vượt tường lửa GitHub Pages
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
     });
     
-    setupUserSessionUI(); // Cập nhật lại giao diện ngay lập tức
+    setupUserSessionUI();
 
     if (btn) {
       btn.innerHTML = "✅ Đã lưu Ma Trận thành công!";
@@ -1817,10 +1825,12 @@ async function fetchDatabaseFromCloud() {
       }
     }
    // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận)
-    if (db.users && Array.isArray(db.users) && db.users.length > 1) {
+   if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       systemUsers = db.users;
+      if (ensureGvcnAccountsExist()) {
+        updateUsersLocalAndCloud(); // Tự động cập nhật đủ 36 GVCN lên Drive nếu thiếu
+      }
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-
       // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
       if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
         const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
@@ -2137,7 +2147,17 @@ function generateDefaultUsers() {
       sdbClass: null
     });
   });
-
+  // 36 Tài khoản Giáo viên chủ nhiệm (GVCN)
+  fixedClasses.forEach(c => {
+    users.push({
+      username: `gvcn_${c.toLowerCase()}`,
+      pass: `gvcn@${c.toLowerCase()}`,
+      name: `GVCN Chi đoàn ${c}`,
+      role: 'gvcn',
+      scope: [c],
+      sdbClass: null
+    });
+  });
   // 12 Tài khoản Thanh niên xung kích (Chấm toàn trường)
   for (let i = 1; i <= 12; i++) {
     users.push({ 
@@ -2175,7 +2195,37 @@ function generateDefaultUsers() {
 
 let systemUsers = JSON.parse(localStorage.getItem('yka_system_users_v1')) || generateDefaultUsers();
 let loggedUser = null;
-
+// Tự động kiểm tra và đảm bảo luôn có đủ 36 tài khoản GVCN chuẩn như tài khoản học sinh
+function ensureGvcnAccountsExist() {
+  let changed = false;
+  ['10', '11', '12'].forEach(grade => {
+    for (let i = 1; i <= 12; i++) {
+      const cid = `${grade}A${i}`;
+      const uname = `gvcn_${cid.toLowerCase()}`;
+      const existing = systemUsers.find(u => u.username.toLowerCase() === uname);
+      if (!existing) {
+        systemUsers.push({
+          username: uname,
+          pass: `gvcn@${cid.toLowerCase()}`,
+          name: `GVCN Chi đoàn ${cid}`,
+          role: 'gvcn',
+          scope: [cid],
+          sdbClass: null
+        });
+        changed = true;
+      } else if (existing.role === 'bgh' && existing.username.toLowerCase().startsWith('gvcn_')) {
+        // Chuyển các tài khoản gvcn_ từng tạo ở nhóm bgh sang đúng nhóm gvcn riêng
+        existing.role = 'gvcn';
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  }
+  return changed;
+}
+ensureGvcnAccountsExist();
 // 4. DỮ LIỆU SỔ ĐẦU BÀI 36 chi đoàn
 let sdbFullData = JSON.parse(localStorage.getItem('yka_sdb_full_v1')) || {};
 CLASSES.forEach(c => {
@@ -2461,6 +2511,10 @@ function setupUserSessionUI() {
     bannerDesc.textContent = `Chuyên trách kiểm soát ATGT, Cổng trường, Bãi xe, Thuốc lá/Vape và kỷ luật học đường của Khối ${loggedUser.assignedGrade}.`;
     bannerTag.textContent = `TNXK KHỐI ${loggedUser.assignedGrade}`;
     scopeBanner.className = 'scope-banner';
+  } else if (myRole === 'gvcn') {
+    roleLabel.textContent = `GVCN CHI ĐOÀN ${(loggedUser.scope || []).join(', ')}`;
+  } else if (myRole === 'bgh') {
+    roleLabel.textContent = 'BAN GIÁM HIỆU / BCH ĐOÀN';
   } else {
     roleLabel.textContent = 'CHẾ ĐỘ XEM CÔNG KHAI';
     bannerTitle.textContent = 'Khách tra cứu công khai';
@@ -4420,7 +4474,14 @@ function renderReviewTable() {
   if(!tbody) return;
   tbody.innerHTML = '';
 
-  const list = violations.filter(v => filter === 'ALL' || v.status === filter).reverse();
+  const list = violations.filter(v => {
+    const matchStatus = (filter === 'ALL' || v.status === filter);
+    // Nếu là GVCN (hoặc BGH có gắn lớp) thì lọc đúng biên bản của lớp chủ nhiệm
+    if (loggedUser && (loggedUser.role === 'gvcn' || loggedUser.role === 'bgh') && loggedUser.scope && loggedUser.scope.length > 0 && !loggedUser.scope.includes('TOÀN TRƯỜNG')) {
+      return matchStatus && loggedUser.scope.includes(v.classId);
+    }
+    return matchStatus;
+  }).reverse();
   list.forEach(v => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -4608,6 +4669,38 @@ function addNewAccount() {
   });
   renderAdminUsersTable(); // Vẽ lại bảng để hiện dòng mới lên đầu
 }
+// Hàm tự động khởi tạo đủ 36 tài khoản GVCN (gvcn_10a1 -> gvcn_12a12)
+function generate36GvcnAccounts() {
+  if (!confirm("Hệ thống sẽ tự động kiểm tra và bổ sung đủ 36 tài khoản GVCN (từ 10A1 đến 12A12) vào nhóm quyền BGH/GVCN.\nBạn có muốn thực hiện ngay không?")) return;
+
+  let addedCount = 0;
+  ['10', '11', '12'].forEach(grade => {
+    for (let i = 1; i <= 12; i++) {
+      const cid = `${grade}A${i}`;
+      const uname = `gvcn_${cid.toLowerCase()}`;
+      // Kiểm tra nếu chưa có tài khoản này thì mới thêm
+      if (!systemUsers.some(u => u.username.toLowerCase() === uname)) {
+        systemUsers.push({
+          username: uname,
+          pass: `gvcn@${cid.toLowerCase()}`,
+          name: `GVCN Chi đoàn ${cid}`,
+          role: 'bgh', // Dùng chung nhóm quyền Xem + Khiếu nại (BGH / GVCN)
+          scope: [cid], // Khóa phạm vi khiếu nại đúng lớp chủ nhiệm
+          sdbClass: null
+        });
+        addedCount++;
+      }
+    }
+  });
+
+  if (addedCount > 0) {
+    renderAdminUsersTable();
+    saveUserAccountsToStorage(); // Tự động lưu và đẩy lên Google Drive luôn
+    alert(`✅ Đã tạo mới thành công ${addedCount} tài khoản GVCN!\n- Tên đăng nhập: gvcn_10a1 -> gvcn_12a12\n- Mật khẩu mặc định: gvcn@10a1 -> gvcn@12a12`);
+  } else {
+    alert("ℹ️ Hệ thống đã có đủ 36 tài khoản GVCN rồi!");
+  }
+}
 // Hàm xóa tài khoản (Tránh trường hợp lỡ bấm thêm nhầm)
 function deleteUserAccount(idx) {
   if(confirm(`Bạn có chắc muốn xóa tài khoản [${systemUsers[idx].username}] khỏi hệ thống?`)) {
@@ -4644,6 +4737,7 @@ function renderAdminUsersTable() {
           <option value="sdb" ${u.role === 'sdb' ? 'selected' : ''}>📖 Sổ Đầu Bài</option>
           <option value="codo" ${u.role === 'codo' ? 'selected' : ''}>🚩 Cờ Đỏ</option>
           <option value="tnxk" ${u.role === 'tnxk' ? 'selected' : ''}>⚡ Tổ TNXK</option>
+          <option value="gvcn" ${u.role === 'gvcn' ? 'selected' : ''}>👩‍🏫 GVCN</option>
           <option value="bgh" ${u.role === 'bgh' ? 'selected' : ''}>🏫 BGH / BCH</option>
           <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>🔒 Khóa (Khách)</option>
         </select>
@@ -4714,6 +4808,11 @@ function saveUserAccountsToStorage() {
         u.scope = CLASSES.map(c => c.id);
         u.sdbClass = null;
       } 
+      else if (newRole === 'gvcn' || newRole === 'bgh') {
+        // GVCN / BGH: Lưu danh sách lớp chủ nhiệm hoặc phụ trách (VD: 10A1)
+        u.scope = scopeStr ? scopeStr.split(',').map(s => s.trim()).filter(s => s) : [];
+        u.sdbClass = null;
+      }
       else if (newRole === 'guest') {
         // Khóa tài khoản: Tước hết quyền sửa đổi, đưa về dạng Khách chỉ xem
         u.scope = [];
@@ -5650,6 +5749,16 @@ function isUsingDefaultPatternPass(user) {
     p.startsWith('sdb@') ||
     p.startsWith('codo@') ||
     p.startsWith('tnxk@')
+  ) {
+    return true;
+  }
+  if (
+    p === defaultPattern ||
+    p === '123456' ||
+    p.startsWith('sdb@') ||
+    p.startsWith('codo@') ||
+    p.startsWith('tnxk@') ||
+    p.startsWith('gvcn@')
   ) {
     return true;
   }
