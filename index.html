@@ -1821,6 +1821,14 @@ async function fetchDatabaseFromCloud() {
       systemUsers = db.users;
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
     } 
+    // Nạp Danh sách Tài khoản
+    if (db.users && Array.isArray(db.users) && db.users.length > 1) {
+      systemUsers = db.users;
+      localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+      if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+        renderAdminUsersTable(); // Vẽ lại bảng ngay khi lấy dữ liệu từ Drive về
+      }
+    }
     // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
     if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
       const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
@@ -3381,7 +3389,10 @@ function switchTab(tabId) {
   if (tabId === 'rules-config') renderRulesConfigTable();
   if (tabId === 'conduct-config') renderConductConfigForm();
   if (tabId === 'history') renderHistoryTable();
-  if (tabId === 'admin-users') renderAdminUsersTable();
+  if (tabId === 'admin-users') {
+    renderAdminUsersTable();
+    fetchDatabaseFromCloud(); // Tự động kéo mật khẩu mới nhất từ Google Drive về
+  }
 }
 
 function initRuleSelects() {
