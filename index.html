@@ -411,6 +411,7 @@
     <button class="tab-btn" id="tabBtn-sdb" onclick="switchTab('sdb')">📖 Cán Bộ SĐB (Nghỉ Học & Điểm KT)</button>
     <button class="tab-btn" id="tabBtn-codo" onclick="switchTab('codo')">🚩 Cờ Đỏ Chấm Tác Phong & Nề Nếp</button>
     <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Đội TNXK</button>
+    <button class="tab-btn" id="tabBtn-report" onclick="switchTab('report')">📢 Tố Giác Vi Phạm</button>
     <button class="tab-btn" id="tabBtn-bch-bonus" onclick="switchTab('bch-bonus')">🎁 BCH Đoàn Cộng Thưởng</button>
     <button class="tab-btn" id="tabBtn-search" onclick="switchTab('search')">👤 Tra Cứu Rèn Luyện Cá Nhân</button>
     <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện Kỳ & Năm</button>
@@ -852,7 +853,72 @@
       </div>
     </div>
   </div>
+  <!-- TAB: TỐ GIÁC VI PHẠM (DÀNH CHO KHÁCH / HỌC SINH / GIÁO VIÊN PHẢN ÁNH) -->
+  <div id="tab-report" class="tab-content">
+    <div class="card" style="border-top: 4px solid var(--danger);">
+      <div class="card-header">
+        <h2>📢 CỔNG TỐ GIÁC & PHẢN ÁNH VI PHẠM NỀ NẾP, ATGT, BẠO LỰC HỌC ĐƯỜNG</h2>
+        <span class="badge badge-danger">Bảo mật danh tính • Bắt buộc có minh chứng</span>
+      </div>
+      <div class="card-body">
+        <div style="background:#fef2f2; border:1px solid #fecaca; border-left:4px solid var(--danger); border-radius:8px; padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.85rem; color:#991b1b; line-height:1.5;">
+          <strong>⚠️ Quy định gửi phản ánh / tố giác:</strong><br>
+          1. Mọi thông tin gửi lên được <strong>bảo mật hoàn toàn</strong> và chuyển trực tiếp tới Thường trực Đoàn trường xác minh.<br>
+          2. Để tránh thông tin sai sự thật, hệ thống <strong>BẮT BUỘC phải có nội dung chi tiết VÀ đính kèm Ảnh chụp thực tế (hoặc Link Video/Ảnh minh chứng)</strong>.
+        </div>
 
+        <form id="guestReportForm" onsubmit="handleGuestReportSubmit(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Ngày xảy ra sự việc (*):</label>
+              <input type="date" id="repDateInput" required>
+            </div>
+            <div class="form-group">
+              <label>Chi đoàn có học sinh vi phạm (*):</label>
+              <select id="repClassSelect" onchange="updateStudentDatalist(this.value)" required></select>
+            </div>
+            <div class="form-group">
+              <label>Họ tên HS vi phạm / Biển số xe / Đặc điểm (*):</label>
+              <input type="text" id="repStudentInput" list="studentDatalist" placeholder="VD: Nguyễn Văn A hoặc Xe điện BKS 35MĐ..." required>
+            </div>
+            <div class="form-group">
+              <label>Thông tin người phản ánh (Bảo mật - Tùy chọn):</label>
+              <input type="text" id="repSenderInfo" placeholder="SĐT/Tên (Hoặc để trống nếu muốn ẩn danh)">
+            </div>
+            <div class="form-group full-width">
+              <label>Hành vi vi phạm bị tố giác (*):</label>
+              <select id="repRuleSelect" onchange="onRepRuleChange()" required>
+                <option value="">-- Chọn hành vi vi phạm tương ứng --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Mức điểm trừ dự kiến (Sau khi BTV xác minh):</label>
+              <input type="text" id="repPointDisplay" class="locked-input" style="font-weight:bold; color:var(--danger);" readonly>
+            </div>
+            <div class="form-group full-width">
+              <label>Nội dung mô tả chi tiết sự việc (Thời gian, địa điểm, diễn biến) (*):</label>
+              <textarea id="repEvidenceInput" rows="3" placeholder="Bắt buộc ghi rõ: Vào lúc mấy giờ, tại khu vực nào, hành vi cụ thể ra sao..." minlength="10" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>📷 Đính kèm ảnh chụp minh chứng trực tiếp (*):</label>
+              <input type="file" id="repImageEvidence" accept="image/*" onchange="handleImagePreview(this, 'repImgPreview')">
+              <div id="repImgPreview" class="img-preview-box"></div>
+            </div>
+            <div class="form-group">
+              <label>🔗 Hoặc Link Video / Ảnh trên Drive (Nếu có):</label>
+              <input type="url" id="repLinkEvidence" placeholder="https://drive.google.com/...">
+              <span style="font-size:0.75rem; color:var(--danger);">* Bắt buộc phải có Ảnh chụp trực tiếp hoặc Link minh chứng!</span>
+            </div>
+          </div>
+          <div style="margin-top:1.25rem; display:flex; justify-content:flex-end;">
+            <button type="submit" class="btn btn-danger" style="padding:0.7rem 1.5rem; font-size:0.95rem;">
+              🚨 Gửi Thông Tin Tố Giác Tới BTV Đoàn Trường
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
   
   <!-- TAB: BCH ĐOÀN CỘNG THƯỞNG HOẠT ĐỘNG & PHONG TRÀO (ĐỘC QUYỀN ADMIN/BCH ĐOÀN) -->
   <div id="tab-bch-bonus" class="tab-content">
@@ -1659,6 +1725,7 @@ const ALL_TABS = [
   { id: 'sdb', name: '📖 Nhập Sổ Đầu Bài (Nghỉ Học, Tiết)' },
   { id: 'codo', name: '🚩 Chấm Cờ Đỏ (Nề Nếp, Tác Phong)' },
   { id: 'tnxk', name: '⚡ Chấm TNXK (Chuyên đề, ATGT)' },
+  { id: 'report', name: '📢 Cổng Tố Giác Vi Phạm (Khách)' },
   { id: 'bch-bonus', name: '🎁 BCH Đoàn Cộng Thưởng' },
   { id: 'search', name: '👤 Tra Cứu Rèn Luyện Cá Nhân' },
   { id: 'hk1', name: '🎓 Tổng Kết Hạnh Kiểm Kỳ & Năm (Cá Nhân)' },
@@ -1679,7 +1746,7 @@ let TABS_CONFIG = JSON.parse(localStorage.getItem('yka_tabs_config_v1')) || {
   'tnxk':  ['board', 'tnxk', 'search', 'hk1', 'review', 'alerts', 'history'],
   'gvcn':  ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'],
   'bgh':   ['board', 'search', 'hk1', 'hk1-class', 'review', 'alerts', 'history'],
-  'guest': ['board', 'search', 'hk1', 'review', 'alerts', 'history']
+  'guest': ['board', 'report', 'search', 'hk1', 'review', 'alerts', 'history']
 };
 // Đảm bảo nếu bộ nhớ cũ chưa có mảng gvcn thì tự động khởi tạo
 if (!TABS_CONFIG['gvcn']) {
@@ -2380,7 +2447,10 @@ function connectMqtt() {
         } 
         else if (payload.action === 'UPDATE_VIOLATION_STATUS') {
           const v = violations.find(x => x.id === payload.data.id);
-          if (v) v.status = payload.data.status;
+          if (v) {
+            v.status = payload.data.status;
+            if (payload.data.evidence) v.evidence = payload.data.evidence;
+          }
           localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
         }
         else if (payload.action === 'UPDATE_SDB') {
@@ -3494,6 +3564,7 @@ function switchTab(tabId) {
   if (tabId === 'hk1-class') renderHk1ClassTable();
   if (tabId === 'review') renderReviewTable();
   if (tabId === 'students') renderStudentManagementTable();
+  if (tabId === 'report') setupGuestReportForm();
   if (tabId === 'rules-config') {
     renderRulesConfigTable();
     fetchDatabaseFromCloud(); // Tự động kéo tiêu chí mới nhất từ Google Drive về
@@ -4299,6 +4370,127 @@ async function handleTnxkViolationSubmit(e) {
     submitBtn.disabled = false;
   }
 }
+// ==================== XỬ LÝ CỔNG TỐ GIÁC VI PHẠM (DÀNH CHO KHÁCH) ====================
+function setupGuestReportForm() {
+  const dateInp = document.getElementById('repDateInput');
+  if (dateInp && !dateInp.value) dateInp.value = new Date().toISOString().split('T')[0];
+
+  const classSel = document.getElementById('repClassSelect');
+  if (classSel && classSel.options.length === 0) {
+    CLASSES.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `Chi đoàn ${c.id} (Khối ${c.grade})`;
+      classSel.appendChild(opt);
+    });
+    if (classSel.value) updateStudentDatalist(classSel.value);
+  }
+
+  const ruleSel = document.getElementById('repRuleSelect');
+  if (ruleSel && ruleSel.options.length <= 1) {
+    ruleSel.innerHTML = '<option value="">-- Chọn hành vi vi phạm bị tố giác --</option>';
+    RULES.filter(r => r.group === 'codo' || r.group === 'tnxk').forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.code;
+      opt.textContent = `[${r.code}] ${r.name} (${r.point}đ)`;
+      ruleSel.appendChild(opt);
+    });
+  }
+}
+
+function onRepRuleChange() {
+  const code = document.getElementById('repRuleSelect').value;
+  const r = RULES.find(rule => rule.code === code);
+  document.getElementById('repPointDisplay').value = r ? `${r.point} điểm (Chờ BTV xác minh)` : '';
+}
+
+async function handleGuestReportSubmit(e) {
+  e.preventDefault();
+
+  // 1. Chống Spam: Giới hạn mỗi lần gửi cách nhau tối thiểu 90 giây
+  const lastReportTime = parseInt(localStorage.getItem('yka_last_report_time') || '0', 10);
+  const now = Date.now();
+  if (now - lastReportTime < 90000) {
+    const waitSec = Math.ceil((90000 - (now - lastReportTime)) / 1000);
+    alert(`⏳ Bạn vừa gửi một phản ánh. Vui lòng đợi ${waitSec} giây nữa trước khi gửi phản ánh tiếp theo!`);
+    return;
+  }
+
+  const classId = document.getElementById('repClassSelect').value;
+  const student = document.getElementById('repStudentInput').value.trim();
+  const senderInfo = document.getElementById('repSenderInfo').value.trim();
+  const code = document.getElementById('repRuleSelect').value;
+  const evidence = document.getElementById('repEvidenceInput').value.trim();
+  const linkEvidence = document.getElementById('repLinkEvidence').value.trim();
+  const fileInput = document.getElementById('repImageEvidence');
+  const rule = RULES.find(r => r.code === code);
+
+  if (!rule) {
+    alert('⚠️ Vui lòng chọn hành vi vi phạm!');
+    return;
+  }
+
+  // 2. BẮT BUỘC PHẢI CÓ MINH CHỨNG (ẢNH CHỤP HOẶC LINK)
+  const hasImageFile = fileInput.files && fileInput.files[0];
+  if (!hasImageFile && !linkEvidence) {
+    alert('⛔ YÊU CẦU BẮT BUỘC:\nĐể đảm bảo tính khách quan, bạn BẮT BUỘC phải đính kèm Ảnh chụp trực tiếp hoặc dán Đường link minh chứng (Video/Ảnh) thì hệ thống mới tiếp nhận tố giác!');
+    return;
+  }
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn.innerHTML;
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = "⏳ Đang gửi hồ sơ tố giác...";
+
+  try {
+    let finalImageUrl = '';
+    if (hasImageFile) {
+      submitBtn.innerHTML = "⏳ Đang tải ảnh minh chứng lên hệ thống...";
+      finalImageUrl = await uploadImageToDrive(fileInput.files[0], 'TOGIAC', classId);
+    }
+
+    const newReport = {
+      id: Date.now(),
+      date: document.getElementById('repDateInput').value,
+      classId: classId,
+      student: student,
+      code: code,
+      name: rule.name,
+      points: rule.point,
+      mult: 1,
+      recorder: senderInfo ? `📢 Tố giác (${senderInfo})` : '📢 Tố giác (Ẩn danh)',
+      evidence: `[TỐ GIÁC]: ${evidence}`,
+      linkEvidence: linkEvidence,
+      imageEvidence: finalImageUrl,
+      status: 'Chờ duyệt' // Luôn chờ Admin xác minh mới có hiệu lực trừ điểm
+    };
+
+    violations.push(newReport);
+    await appendSingleViolationToCloud(newReport);
+
+    if (mqttClient && mqttClient.connected) {
+      publishUpdate('NEW_VIOLATION', newReport);
+    }
+
+    localStorage.setItem('yka_last_report_time', Date.now().toString());
+
+    alert('✅ ĐÃ GỬI TỐ GIÁC THÀNH CÔNG!\nHồ sơ và minh chứng đã được chuyển mật tới Ban Thường vụ Đoàn trường để xác minh và xử lý.');
+
+    document.getElementById('repStudentInput').value = '';
+    document.getElementById('repEvidenceInput').value = '';
+    document.getElementById('repLinkEvidence').value = '';
+    document.getElementById('repImageEvidence').value = '';
+    document.getElementById('repImgPreview').innerHTML = '';
+
+    renderReviewTable();
+    updatePendingBadge();
+  } catch (err) {
+    alert('❌ Lỗi khi tải minh chứng: ' + err.message);
+  } finally {
+    submitBtn.innerHTML = originalBtnText;
+    submitBtn.disabled = false;
+  }
+}
 function renderCodoLogsTable() {
   const tbody = document.getElementById('codoLogsBody');
   tbody.innerHTML = '';
@@ -4590,20 +4782,23 @@ function renderReviewTable() {
 function studentDisputeViolation(id) {
   const it = violations.find(v => v.id === id);
   if (it) {
-    const reason = prompt(`📝 BẠN ĐANG KHIẾU NẠI LỖI: [${it.name}]\n\nHọc sinh / GVCN vui lòng nhập rõ lý do khiếu nại\n(VD: Lớp đã xin phép BGH, Phạt nhầm tên bạn khác, Trùng lỗi...):`);
+    const senderLabel = (loggedUser && loggedUser.role === 'gvcn') ? `GVCN ${loggedUser.scope.join(',')}` : 'HS/GVCN';
+    const reason = prompt(`📝 KHIẾU NẠI BIÊN BẢN: [${it.name}]\n\nThầy/cô hoặc học sinh vui lòng nhập rõ lý do khiếu nại:`);
     
     if (reason && reason.trim() !== '') {
       it.status = 'Khiếu nại'; 
-      it.evidence += `\n🔴 [HS KHIẾU NẠI]: ${reason.trim()}`;
+      it.evidence += `\n🔴 [${senderLabel} KHIẾU NẠI]: ${reason.trim()}`;
       
       updateViolationsLocalAndCloud();
       
       if (typeof publishUpdate === 'function') {
-        publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Khiếu nại' });
+        publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Khiếu nại', evidence: it.evidence });
       }
       
       renderReviewTable();
-      alert('✅ Đã gửi khiếu nại thành công! Vui lòng chờ Admin/BTV Đoàn trường kiểm tra.');
+      renderLeaderboard();
+      updatePendingBadge();
+      alert('✅ Đã gửi khiếu nại thành công! Hệ thống đã báo lên tài khoản Admin/BTV Đoàn trường.');
     }
   }
 }
@@ -4648,8 +4843,10 @@ function cancelViolation(id) {
 }
 
 function updatePendingBadge() {
-  const pending = violations.filter(v => v.status === 'Chờ duyệt').length;
-  document.getElementById('pendingReviewBadge').textContent = pending;
+  // Đếm cả biên bản Chờ duyệt VÀ biên bản đang Khiếu nại để báo số đỏ cho Admin biết
+  const pending = violations.filter(v => v.status === 'Chờ duyệt' || v.status === 'Khiếu nại').length;
+  const badge = document.getElementById('pendingReviewBadge');
+  if (badge) badge.textContent = pending;
 }
 
 // ==================== TRA CỨU ĐIỂM CÁ NHÂN ====================
