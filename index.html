@@ -2320,9 +2320,11 @@ function connectMqtt() {
         if(typeof renderTnxkLogsTable === 'function') renderTnxkLogsTable();
         if(typeof renderReviewTable === 'function') renderReviewTable();
         updatePendingBadge();
-      } catch (e) { console.error("Lỗi đọc tin MQTT", e); }
-    });
+     } catch (e) { console.error("Lỗi đọc tin MQTT", e); }
+    }
+  });
 }
+
 
 // 4. Hàm bắn tin nhắn đi
 const SESSION_ID = "DEVICE_" + Math.random().toString(36).substr(2, 9);
