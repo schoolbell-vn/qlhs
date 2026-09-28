@@ -397,7 +397,7 @@
       <span class="user-role-label" id="topBarUserRole">--</span>
     </div>
     <button class="btn btn-outline btn-sm" id="btnChangeMyPass" onclick="openChangePassModal(false)" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔑 Đổi MK</button>
-    <button class="btn btn-outline btn-sm" onclick="document.getElementById('mqttModal').style.display='flex'" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.5rem; border-radius:6px; cursor:pointer; font-weight:600;">⚙️ Máy chủ</button>
+    <button class="btn btn-outline btn-sm" id="btnMqttServer" onclick="if(loggedUser && loggedUser.role==='admin') document.getElementById('mqttModal').style.display='flex'" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.5rem; border-radius:6px; cursor:pointer; font-weight:600;">⚙️ Máy chủ</button>
     <button class="btn-logout" onclick="logout()">Đăng Xuất</button>
   </div>
 </header>
@@ -2670,6 +2670,12 @@ function setupUserSessionUI() {
   const btnChangePass = document.getElementById('btnChangeMyPass');
   if (btnChangePass) {
     btnChangePass.style.display = (myRole !== 'guest') ? 'inline-flex' : 'none';
+  }
+
+  // ĐỘC QUYỀN ADMIN: Chỉ Admin mới nhìn thấy nút cài đặt "⚙️ Máy chủ"
+  const btnMqtt = document.getElementById('btnMqttServer');
+  if (btnMqtt) {
+    btnMqtt.style.display = (myRole === 'admin') ? 'inline-flex' : 'none';
   }
 
   // Kiểm tra bảo mật: Nếu cán bộ SĐB / Cờ đỏ / TNXK đang dùng mật khẩu mặc định theo quy luật thì bắt buộc đổi ngay
