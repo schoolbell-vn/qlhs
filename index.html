@@ -1831,12 +1831,15 @@ async function saveTabsConfig() {
     }
   }
 }
-// Hàm gọi API lấy danh sách học sinh từ Google Drive
 // Hàm tải dữ liệu bằng JSONP (Xuyên qua mọi tường lửa và không bị chặn khi Chrome đăng nhập nhiều Gmail)
+let isFetchingCloud = false;
+let lastCloudFetchTime = 0;
+// Hàm tải dữ liệu bằng JSONP (Chạy sau khi trang đã mở xong để không làm quay vòng tròn trên Tab)
 function loadCloudDataViaJsonp() {
   return new Promise((resolve, reject) => {
     const cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     const script = document.createElement("script");
+    script.async = true;
     const timer = setTimeout(() => {
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
@@ -1862,15 +1865,24 @@ function loadCloudDataViaJsonp() {
   });
 }
 
-async function fetchDatabaseFromCloud() {
+async function fetchDatabaseFromCloud(force = false) {
+  // Chống gọi trùng lặp 2-3 lần liên tiếp trong vòng 5 giây lúc mới mở trang
+  const now = Date.now();
+  if (isFetchingCloud) return;
+  if (!force && (now - lastCloudFetchTime < 5000)) return;
+
+  isFetchingCloud = true;
+  lastCloudFetchTime = now;
+
   try {
-    // Ưu tiên tải bằng JSONP để không bao giờ bị lỗi CORS khi máy đăng nhập nhiều Gmail
     let db;
+    // Ưu tiên thử fetch ngầm trước (không làm quay vòng tròn trên tab trình duyệt)
     try {
-      db = await loadCloudDataViaJsonp();
-    } catch (jsonpErr) {
-      const response = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + new Date().getTime(), { redirect: "follow" });
+      const response = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + now, { redirect: "follow" });
       db = await response.json();
+    } catch (fetchErr) {
+      // Chỉ khi trình duyệt chặn CORS (như máy đăng nhập nhiều Gmail) mới tự động bật JSONP
+      db = await loadCloudDataViaJsonp();
     }
     
     if (db.status === "error") {
@@ -1974,6 +1986,8 @@ async function fetchDatabaseFromCloud() {
     
   } catch (error) {
     console.warn("Lỗi kết nối:", error);
+  } finally {
+    isFetchingCloud = false;
   }
 }
 
@@ -1988,8 +2002,10 @@ function refreshStudentDatalists() {
   }
 }
 
-// Gọi hàm tải danh sách ngay khi mở trang web
-fetchDatabaseFromCloud();
+// Đợi giao diện hiển thị xong mới đồng bộ ngầm để tab trình duyệt không bị quay tròn
+window.addEventListener('load', () => {
+  setTimeout(() => fetchDatabaseFromCloud(true), 300);
+});
 // ======================================================================
 function updateStudentDatalist(selectedClassId) {
   const dl = document.getElementById('studentDatalist');
