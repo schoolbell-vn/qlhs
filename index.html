@@ -1716,6 +1716,9 @@ async function saveTabsConfig() {
       if (chk && chk.checked) TABS_CONFIG[role].push(tab.id);
     });
   });
+
+  // Giữ lại cấu hình xếp loại rèn luyện bên trong TABS_CONFIG để không bị mất
+  TABS_CONFIG.conductConfig = CONDUCT_CONFIG;
   localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
   
   const btn = document.querySelector('button[onclick="saveTabsConfig()"]');
@@ -1734,7 +1737,12 @@ async function saveTabsConfig() {
       body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
     });
     
-    setupUserSessionUI();
+    // Bắn tín hiệu MQTT để các máy GVCN / BGH đang mở tự động cập nhật thanh Menu ngay lập tức
+    publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
+
+    // LƯU Ý QUAN TRỌNG: Chỉ vẽ lại ma trận tại chỗ, TUYỆT ĐỐI KHÔNG gọi setupUserSessionUI() ở đây 
+    // để tránh kích hoạt fetchDatabaseFromCloud() lấy dữ liệu cũ từ Drive đè ngược lại!
+    renderTabsConfigMatrix();
 
     if (btn) {
       btn.innerHTML = "✅ Đã lưu Ma Trận thành công!";
@@ -1745,7 +1753,7 @@ async function saveTabsConfig() {
         btn.disabled = false;
       }, 2500);
     }
-    alert('✅ Đã lưu cấu hình Phân Quyền Thẻ lên Đám mây thành công!');
+    alert('✅ Đã lưu cấu hình Phân Quyền Thẻ cho GVCN, BGH và các bộ phận thành công!');
   } catch(e) { 
     console.error("Lỗi:", e); 
     alert('⚠️ Lưu nội bộ thành công nhưng chưa đẩy được lên Đám mây.');
@@ -2241,6 +2249,7 @@ function ensureGvcnAccountsExist() {
       const cid = `${grade}A${i}`;
       const uname = `gvcn_${cid.toLowerCase()}`;
       const existing = systemUsers.find(u => u.username.toLowerCase() === uname);
+      // Chỉ tự động tạo nếu chưa có tài khoản đó, nếu có rồi thì giữ nguyên quyền Admin đã phân
       if (!existing) {
         systemUsers.push({
           username: uname,
@@ -2250,10 +2259,6 @@ function ensureGvcnAccountsExist() {
           scope: [cid],
           sdbClass: null
         });
-        changed = true;
-      } else if (existing.role === 'bgh' && existing.username.toLowerCase().startsWith('gvcn_')) {
-        // Chuyển các tài khoản gvcn_ từng tạo ở nhóm bgh sang đúng nhóm gvcn riêng
-        existing.role = 'gvcn';
         changed = true;
       }
     }
@@ -2399,6 +2404,17 @@ function connectMqtt() {
             localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
             if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
               renderAdminUsersTable();
+            }
+          }
+        }
+        else if (payload.action === 'UPDATE_TABS_CONFIG') {
+          if (payload.data) {
+            TABS_CONFIG = payload.data;
+            localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+            if (loggedUser && loggedUser.role === 'admin' && typeof renderTabsConfigMatrix === 'function') {
+              renderTabsConfigMatrix();
+            } else if (loggedUser) {
+              setupUserSessionUI();
             }
           }
         }
