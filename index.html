@@ -1820,7 +1820,18 @@ async function fetchDatabaseFromCloud() {
     if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       systemUsers = db.users;
       localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-    } else {
+    } 
+    // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
+    if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
+      const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+      if (cloudUser && cloudUser.pass !== loggedUser.pass && !isUsingDefaultPatternPass(loggedUser)) {
+        cloudUser.pass = loggedUser.pass;
+        cloudUser.mustChangePass = false;
+        updateUsersLocalAndCloud();
+        publishUpdate('UPDATE_USER_PASS', { username: loggedUser.username, newPass: loggedUser.pass });
+      }
+    }
+    else {
       // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ tài khoản và đẩy lên Đám mây
       if (!systemUsers || systemUsers.length <= 1) {
         systemUsers = generateDefaultUsers();
