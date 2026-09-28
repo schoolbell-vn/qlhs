@@ -2276,9 +2276,25 @@ function connectMqtt() {
           if (v) v.status = payload.data.status;
           localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
         }
-        else if (payload.action === 'UPDATE_SDB') {
-          sdbFullData[payload.data.classId] = payload.data.sdbData;
-          localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+        else if (payload.action === 'UPDATE_USER_PASS') {
+          const targetUser = systemUsers.find(u => u.username.toLowerCase() === payload.data.username.toLowerCase());
+          if (targetUser) {
+            targetUser.pass = payload.data.newPass;
+            targetUser.mustChangePass = false;
+            localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+            if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+              renderAdminUsersTable();
+            }
+          }
+        }
+        else if (payload.action === 'UPDATE_ALL_USERS') {
+          if (Array.isArray(payload.data) && payload.data.length > 1) {
+            systemUsers = payload.data;
+            localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+            if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+              renderAdminUsersTable();
+            }
+          }
         }
 
         renderLeaderboard();
@@ -3354,6 +3370,7 @@ function switchTab(tabId) {
   if (tabId === 'rules-config') renderRulesConfigTable();
   if (tabId === 'conduct-config') renderConductConfigForm();
   if (tabId === 'history') renderHistoryTable();
+  if (tabId === 'admin-users') renderAdminUsersTable();
 }
 
 function initRuleSelects() {
@@ -4650,7 +4667,7 @@ function saveUserAccountsToStorage() {
   }
 
   updateUsersLocalAndCloud();
-
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
   setTimeout(() => {
     if (btn) {
       btn.innerHTML = "✅ Đã lưu thành công!";
@@ -5607,7 +5624,6 @@ async function handleSelfPasswordChange(e) {
   const newPass = document.getElementById('cpNewPass').value.trim();
   const confirmPass = document.getElementById('cpConfirmPass').value.trim();
 
-  // Đối chiếu với tài khoản thực tế trong systemUsers
   const userRecord = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
   const currentActualPass = userRecord ? userRecord.pass : loggedUser.pass;
 
@@ -5626,7 +5642,6 @@ async function handleSelfPasswordChange(e) {
     return;
   }
 
-  // Chặn không cho học sinh đặt lại mật khẩu mới vẫn theo quy luật cũ
   const tempCheckUser = { ...loggedUser, pass: newPass, mustChangePass: undefined };
   if (newPass === oldPass || isUsingDefaultPatternPass(tempCheckUser)) {
     alert('⚠️ Mật khẩu mới vẫn trùng với mật khẩu mặc định hoặc quy luật chung (`sdb@...`, `codo@...`, `123456`). Vui lòng đặt mật khẩu riêng bí mật hơn!');
@@ -5635,30 +5650,51 @@ async function handleSelfPasswordChange(e) {
 
   const btn = document.getElementById('btnSubmitChangePass');
   const oldText = btn.innerHTML;
-  btn.innerHTML = '⏳ Đang lưu mật khẩu...';
+  btn.innerHTML = '⏳ Đang đồng bộ mật khẩu...';
   btn.disabled = true;
 
-  // Cập nhật vào danh sách tài khoản hệ thống và phiên đăng nhập hiện tại
-  if (userRecord) {
-    userRecord.pass = newPass;
-    userRecord.mustChangePass = false;
-  }
-  loggedUser.pass = newPass;
-  loggedUser.mustChangePass = false;
-  sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+  try {
+    // 1. Tải danh sách tài khoản mới nhất từ Cloud về trước để không ghi đè mất mật khẩu của bạn khác vừa đổi
+    try {
+      const res = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + Date.now(), { redirect: "follow" });
+      const db = await res.json();
+      if (db && db.users && Array.isArray(db.users) && db.users.length > 1) {
+        systemUsers = db.users;
+      }
+    } catch (fetchErr) {
+      console.warn("Không lấy được bản mới nhất từ Cloud, dùng bản local:", fetchErr);
+    }
 
-  // Lưu vào máy và đồng bộ ngay lên Google Drive (db_users.json)
-  updateUsersLocalAndCloud();
-  if (loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
-    renderAdminUsersTable();
-  }
+    // 2. Cập nhật đúng mật khẩu của tài khoản đang đăng nhập
+    const latestUserRecord = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+    if (latestUserRecord) {
+      latestUserRecord.pass = newPass;
+      latestUserRecord.mustChangePass = false;
+    }
 
-  setTimeout(() => {
+    loggedUser.pass = newPass;
+    loggedUser.mustChangePass = false;
+    sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+
+    // 3. Lưu lên Google Drive và bắn MQTT tức thời sang máy Admin
+    localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+    await syncDataToCloud("db_users.json", systemUsers);
+
+    publishUpdate('UPDATE_USER_PASS', {
+      username: loggedUser.username,
+      newPass: newPass
+    });
+
+    if (loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+      renderAdminUsersTable();
+    }
+
+    document.getElementById('changePassModal').style.display = 'none';
+    alert('✅ Đổi mật khẩu thành công! Mật khẩu mới đã được đồng bộ lên hệ thống.');
+  } finally {
     btn.innerHTML = oldText;
     btn.disabled = false;
-    document.getElementById('changePassModal').style.display = 'none';
-    alert('✅ Đổi mật khẩu thành công! Từ lần sau bạn hãy dùng mật khẩu mới này để đăng nhập nhé.');
-  }, 600);
+  }
 }
 // ==================== SAO LƯU & KHÔI PHỤC TOÀN HỆ THỐNG (FULL BACKUP & RESTORE) ====================
 function exportFullSystemBackup() {
