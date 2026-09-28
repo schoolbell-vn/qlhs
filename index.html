@@ -1786,10 +1786,12 @@ async function fetchDatabaseFromCloud() {
       CLASSES = getDynamicClasses();
     }
     // Nạp Cấu hình Tiêu chí Điểm động
+    // Nạp Cấu hình Tiêu chí Điểm động
     if (db.rules && db.rules.length > 0) {
       RULES = db.rules;
       localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
       initRuleSelects(); // Gắn danh sách mới vào các ô thả xuống của Cờ Đỏ, TNXK, BCH
+      if (typeof renderRulesConfigTable === 'function') renderRulesConfigTable(); // Vẽ lại bảng cấu hình ngay lập tức
     }
     // Nạp Cấu hình Ma trận phân quyền Tab & Cấu hình Xếp loại RL
     if (db.tabs) {
@@ -3440,8 +3442,14 @@ function switchTab(tabId) {
   if (tabId === 'hk1-class') renderHk1ClassTable();
   if (tabId === 'review') renderReviewTable();
   if (tabId === 'students') renderStudentManagementTable();
-  if (tabId === 'rules-config') renderRulesConfigTable();
-  if (tabId === 'conduct-config') renderConductConfigForm();
+  if (tabId === 'rules-config') {
+    renderRulesConfigTable();
+    fetchDatabaseFromCloud(); // Tự động kéo tiêu chí mới nhất từ Google Drive về
+  }
+  if (tabId === 'conduct-config') {
+    renderConductConfigForm();
+    fetchDatabaseFromCloud();
+  }
   if (tabId === 'history') renderHistoryTable();
   if (tabId === 'admin-users') {
     renderAdminUsersTable();
