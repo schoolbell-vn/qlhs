@@ -2453,6 +2453,10 @@ function connectMqtt() {
           }
           localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
         }
+        else if (payload.action === 'DELETE_VIOLATION') {
+          violations = violations.filter(x => x.id !== payload.data.id);
+          localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+        }
         else if (payload.action === 'UPDATE_SDB') {
           sdbFullData[payload.data.classId] = payload.data.sdbData;
           localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
@@ -4746,7 +4750,12 @@ function renderReviewTable() {
 
   const list = violations.filter(v => {
     const matchStatus = (filter === 'ALL' || v.status === filter);
-    // Nếu là GVCN (hoặc BGH có gắn lớp) thì lọc đúng biên bản của lớp chủ nhiệm
+    // Nếu không phải Admin: Ẩn các đơn Tố giác chưa được kiểm chứng (Chờ duyệt) hoặc các biên bản Đã hủy
+    if (!loggedUser || loggedUser.role !== 'admin') {
+      if (v.status === 'Đã hủy') return false;
+      if (v.recorder && v.recorder.includes('Tố giác') && v.status === 'Chờ duyệt') return false;
+    }
+    // Nếu là GVCN hoặc BGH có gắn lớp cụ thể thì chỉ hiện đúng lớp chủ nhiệm
     if (loggedUser && (loggedUser.role === 'gvcn' || loggedUser.role === 'bgh') && loggedUser.scope && loggedUser.scope.length > 0 && !loggedUser.scope.includes('TOÀN TRƯỜNG')) {
       return matchStatus && loggedUser.scope.includes(v.classId);
     }
@@ -4772,6 +4781,7 @@ function renderReviewTable() {
           <button class="btn btn-success btn-sm" onclick="approveViolation(${v.id})" title="Duyệt">Duyệt</button>
           <button class="btn btn-outline btn-sm" onclick="disputeViolation(${v.id})" title="Khiếu nại">Khiếu nại</button>
           <button class="btn btn-danger btn-sm" onclick="cancelViolation(${v.id})" title="Hủy">Hủy</button>
+          <button class="btn btn-danger btn-sm" style="background:#dc2626; color:white;" onclick="deleteViolationPermanently(${v.id})" title="Xóa vĩnh viễn khỏi hệ thống">🗑️ Xóa</button>
         ` : `
           ${(v.status !== 'Khiếu nại' && v.status !== 'Đã hủy') ? 
             `<button class="btn btn-warning btn-sm" style="background:#f59e0b; color:white; border:none; font-weight:bold;" onclick="studentDisputeViolation(${v.id})">🙋 Khiếu nại</button>` 
@@ -4847,7 +4857,32 @@ function cancelViolation(id) {
     }
   }
 }
+function deleteViolationPermanently(id) {
+  const it = violations.find(v => v.id === id);
+  if (!it) return;
 
+  if (confirm(`🗑️ XÓA VĨNH VIỄN BIÊN BẢN / TỐ GIÁC SAI SỰ THẬT:\n\n- Học sinh: ${it.student} (Lớp ${it.classId})\n- Nội dung: ${it.name}\n\nBạn có chắc chắn muốn xóa sạch dữ liệu này khỏi hệ thống và Google Drive không?`)) {
+    // 1. Loại bỏ hoàn toàn khỏi mảng biên bản
+    violations = violations.filter(v => v.id !== id);
+
+    // 2. Lưu đè danh sách mới lên máy và Google Drive
+    updateViolationsLocalAndCloud();
+
+    // 3. Báo qua MQTT để xóa ngay trên các máy khác đang mở
+    if (typeof publishUpdate === 'function') {
+      publishUpdate('DELETE_VIOLATION', { id: id });
+    }
+
+    // 4. Cập nhật lại seluruh bảng hiển thị
+    renderReviewTable();
+    renderLeaderboard();
+    renderStudentSearchTable();
+    if (typeof renderCodoLogsTable === 'function') renderCodoLogsTable();
+    if (typeof renderTnxkLogsTable === 'function') renderTnxkLogsTable();
+    if (typeof renderBchBonusLogsTable === 'function') renderBchBonusLogsTable();
+    updatePendingBadge();
+  }
+}
 function updatePendingBadge() {
   // Đếm cả biên bản Chờ duyệt VÀ biên bản đang Khiếu nại để báo số đỏ cho Admin biết
   const pending = violations.filter(v => v.status === 'Chờ duyệt' || v.status === 'Khiếu nại').length;
