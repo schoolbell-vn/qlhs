@@ -1398,8 +1398,9 @@
     <div class="card">
       <div class="card-header">
         <h2>🧑‍🎓 QUẢN LÝ THÔNG TIN CÁ NHÂN HỌC SINH</h2>
-        <div style="display:flex; gap:0.5rem;" class="no-print">
-          <select id="manageStudentClassFilter" onchange="renderStudentManagementTable()" style="font-size:0.82rem; padding:0.3rem 0.6rem;">
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;" class="no-print">
+          <input type="text" id="manageStudentSearchInput" placeholder="🔍 Tìm tên, mã HS, lớp..." onkeyup="renderStudentManagementTable()" style="width:220px; font-size:0.82rem; padding:0.35rem 0.7rem;">
+          <select id="manageStudentClassFilter" onchange="renderStudentManagementTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem;">
             <!-- Options populated dynamically -->
           </select>
           <button class="btn btn-primary btn-sm" onclick="openAddStudentModal()">➕ Thêm thủ công</button>
@@ -5898,6 +5899,7 @@ function exportStudentViolationsCSV() {
 }
 
 // ==================== QUẢN LÝ HỌC SINH ====================
+// ==================== QUẢN LÝ HỌC SINH ====================
 function renderStudentManagementTable() {
   const sel = document.getElementById('manageStudentClassFilter');
   if (sel.options.length === 0) {
@@ -5907,18 +5909,34 @@ function renderStudentManagementTable() {
     });
   }
   const filter = sel.value;
-  const tbody = document.getElementById('manageStudentTableBody');
-  if(!tbody) return;
+  const searchInput = document.getElementById('manageStudentSearchInput');
+  const q = searchInput ? searchInput.value.normalize('NFC').trim().toLowerCase() : '';
 
-  const list = STUDENTS_DB.filter(s => filter === 'ALL' || s.classId === filter).sort((a,b) => {
-      if(a.classId !== b.classId) return a.classId.localeCompare(b.classId, undefined, {numeric: true});
-      return a.stt - b.stt;
+  const tbody = document.getElementById('manageStudentTableBody');
+  if (!tbody) return;
+
+  const list = STUDENTS_DB.filter(s => {
+    const matchClass = (filter === 'ALL' || s.classId === filter);
+    if (!matchClass) return false;
+    if (!q) return true;
+
+    const sName = String(s.name || '').normalize('NFC').toLowerCase();
+    const sId = String(s.id || '').toLowerCase();
+    const sClass = String(s.classId || '').toLowerCase();
+    const sDob = String(s.dob || '').toLowerCase();
+
+    return sName.includes(q) || sId.includes(q) || sClass.includes(q) || sDob.includes(q);
+  }).sort((a, b) => {
+    if (a.classId !== b.classId) return a.classId.localeCompare(b.classId, undefined, { numeric: true });
+    return a.stt - b.stt;
   });
 
-  // PHẦN CODE ĐÃ ĐƯỢC TỐI ƯU HIỆU SUẤT TẠI ĐÂY:
-  // Gộp tất cả thẻ <tr> vào 1 biến text, sau đó mới in ra màn hình 1 lần
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Không tìm thấy học sinh nào khớp với từ khóa tìm kiếm.</td></tr>`;
+    return;
+  }
+
   let htmlContent = '';
-  
   list.forEach((s, idx) => {
     htmlContent += `
       <tr>
@@ -5935,8 +5953,7 @@ function renderStudentManagementTable() {
       </tr>
     `;
   });
-  
-  // Gắn nguyên cục HTML khổng lồ vào bảng chỉ với 1 thao tác
+
   tbody.innerHTML = htmlContent;
 }
 
