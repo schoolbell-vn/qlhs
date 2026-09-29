@@ -3145,6 +3145,51 @@ function isDateInSelectedTerm(dateStr, term) {
   return true;
 }
 
+// Hàm nhận diện tên học sinh thông minh (Bắt chuẩn tên ngay cả khi TNXK/Cờ đỏ ghi kèm BKS xe hoặc ghi chú)
+function matchStudentInClass(classId, rawStudentStr) {
+  if (!rawStudentStr) return null;
+  // Cắt bỏ phần trong ngoặc đơn (...) hoặc sau dấu gạch ngang " - " (VD: "Hoàng Văn Tuấn (BKS 35-MĐ1...)" -> "Hoàng Văn Tuấn")
+  const cleanInput = rawStudentStr
+    .replace(/\([^)]*\)/g, '')
+    .split(' - ')[0]
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const classStudents = STUDENTS_DB.filter(s => s.classId === classId);
+  // 1. Khớp chính xác tên đã làm sạch
+  let matched = classStudents.find(s => s.name.replace(/\s+/g, ' ').trim().toLowerCase() === cleanInput);
+  // 2. Nếu vẫn chưa khớp (do ghi thêm chữ phía sau mà không mở ngoặc), kiểm tra xem chuỗi nhập có bắt đầu bằng Họ tên chuẩn của HS trong lớp không
+  if (!matched) {
+    matched = classStudents.find(s => {
+      const stdName = s.name.replace(/\s+/g, ' ').trim().toLowerCase();
+      return stdName.length > 3 && cleanInput.startsWith(stdName);
+    });
+  }
+  return matched || null;
+}
+
+// Hàm quy đổi Xếp loại Rèn luyện Cả Năm từ (HK1 + HK2) theo đúng Điều 8 - Thông tư 22/2021/TT-BGDĐT
+function getYearRankByTT22(rankHk1, rankHk2) {
+  if (rankHk2 === 'Tốt' && (rankHk1 === 'Tốt' || rankHk1 === 'Khá')) {
+    return 'Tốt';
+  }
+  if (
+    (rankHk2 === 'Khá' && (rankHk1 === 'Tốt' || rankHk1 === 'Khá' || rankHk1 === 'Đạt')) ||
+    (rankHk2 === 'Đạt' && rankHk1 === 'Tốt') ||
+    (rankHk2 === 'Tốt' && (rankHk1 === 'Đạt' || rankHk1 === 'Chưa đạt'))
+  ) {
+    return 'Khá';
+  }
+  if (
+    (rankHk2 === 'Đạt' && (rankHk1 === 'Khá' || rankHk1 === 'Đạt' || rankHk1 === 'Chưa đạt')) ||
+    (rankHk2 === 'Khá' && rankHk1 === 'Chưa đạt')
+  ) {
+    return 'Đạt';
+  }
+  return 'Chưa đạt';
+}
+
 // Hàm kiểm tra xem hồ sơ học sinh có vi phạm một Tiêu chí khống chế (rule) hay không
 function isRuleTriggered(studentRec, rule, netPenalty) {
   const val = parseFloat(rule.threshold) || 0;
@@ -3164,12 +3209,10 @@ function isRuleTriggered(studentRec, rule, netPenalty) {
   }
 }
 
-function computeHk1StudentRecords() {
+// Hàm tính kết quả Rèn luyện cho 1 Học kỳ cụ thể ('HK1' hoặc 'HK2')
+function computeSingleTermStudentRecords(term) {
   const cfg = CONDUCT_CONFIG;
-  const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
-  const totalWeeks = term === 'HK1' ? cfg.weeksHk1 : (term === 'HK2' ? cfg.weeksHk2 : cfg.weeksYear);
-  const scopeType = term === 'YEAR' ? 'YEAR' : 'TERM';
-
+  const totalWeeks = (term === 'HK1') ? (cfg.weeksHk1 || 18) : (cfg.weeksHk2 || 17);
   const recordMap = {};
 
   STUDENTS_DB.forEach(s => {
@@ -3181,14 +3224,14 @@ function computeHk1StudentRecords() {
     };
   });
 
-  // 1. Quét biên bản Cờ đỏ, TNXK, BCH Đoàn
+  // 1. Quét biên bản Cờ đỏ, TNXK, BCH Đoàn (Sử dụng matchStudentInClass để không bị lọt lỗi khi kèm BKS xe)
   violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && isDateInSelectedTerm(v.date, term)).forEach(v => {
-    const matched = STUDENTS_DB.find(s => s.classId === v.classId && s.name.trim().toLowerCase() === v.student.trim().toLowerCase());
+    const matched = matchStudentInClass(v.classId, v.student);
     const key = matched ? matched.id : `${v.classId}_${v.student.trim().toLowerCase()}`;
     
     if (!recordMap[key]) {
       recordMap[key] = {
-        stt: 999, classId: v.classId, id: 'Tự do', name: v.student, dob: '', gender: '',
+        stt: 999, classId: v.classId, id: 'Chưa khớp mã', name: v.student, dob: '', gender: '',
         excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
         maxSinglePenalty: 0, violatedCodes: [],
         totalPenalties: 0, totalBonuses: 0, details: []
@@ -3217,7 +3260,7 @@ function computeHk1StudentRecords() {
   Object.keys(sdbFullData).forEach(cid => {
     const s = sdbFullData[cid];
     (s.absences || []).filter(a => isDateInSelectedTerm(a.date, term)).forEach(a => {
-      const matched = STUDENTS_DB.find(st => st.classId === cid && st.name.trim().toLowerCase() === a.student.trim().toLowerCase());
+      const matched = matchStudentInClass(cid, a.student);
       const key = matched ? matched.id : `${cid}_${a.student.trim().toLowerCase()}`;
       
       if (!recordMap[key]) {
@@ -3239,12 +3282,13 @@ function computeHk1StudentRecords() {
     });
   });
 
-  // Thứ tự bậc xếp loại từ cao xuống thấp
   const rankOrder = { 'Tốt': 4, 'Khá': 3, 'Đạt': 2, 'Chưa đạt': 1 };
   const badgeMap = { 'Tốt': 'badge-success', 'Khá': 'badge-info', 'Đạt': 'badge-warning', 'Chưa đạt': 'badge-danger' };
 
-  // 3. Tính điểm & Duyệt qua toàn bộ Danh sách Tiêu chí Khống chế Động
-  return Object.values(recordMap).map(r => {
+  // 3. Tính điểm & Duyệt qua các tiêu chí khống chế của Học kỳ
+  const resultMap = {};
+  Object.keys(recordMap).forEach(key => {
+    const r = recordMap[key];
     const netPenalty = Math.max(0, r.totalPenalties - r.totalBonuses);
     let finalScoreNum = cfg.weeklyBaseScore;
 
@@ -3254,15 +3298,13 @@ function computeHk1StudentRecords() {
       finalScoreNum = Math.max(0, Math.min(cfg.weeklyBaseScore, cfg.weeklyBaseScore - ((r.totalPenalties - r.totalBonuses) / totalWeeks)));
     }
 
-    // Xếp loại ban đầu dựa theo mốc điểm chuẩn
     let currentRank = 'Chưa đạt';
     if (finalScoreNum >= cfg.minAvgGood) currentRank = 'Tốt';
     else if (finalScoreNum >= cfg.minAvgFair) currentRank = 'Khá';
     else if (finalScoreNum >= cfg.minAvgPass) currentRank = 'Đạt';
 
-    // Duyệt qua các tiêu chí khống chế trong CONDUCT_CONFIG.rules
     let triggeredNotes = [];
-    const activeRules = (cfg.rules || []).filter(rule => rule.scope === 'ALL' || rule.scope === scopeType);
+    const activeRules = (cfg.rules || []).filter(rule => rule.scope === 'ALL' || rule.scope === 'TERM');
 
     activeRules.forEach(rule => {
       if (isRuleTriggered(r, rule, netPenalty)) {
@@ -3275,13 +3317,98 @@ function computeHk1StudentRecords() {
       }
     });
 
-    return {
+    resultMap[key] = {
       ...r,
       netPenalty: netPenalty.toFixed(1),
+      finalScoreNum: finalScoreNum,
       finalScore: finalScoreNum.toFixed(1),
       rank: currentRank,
       bClass: badgeMap[currentRank] || 'badge-gray',
-      controlNote: triggeredNotes.length > 0 ? `📌 Khống chế: ${triggeredNotes.join(' | ')}` : ''
+      controlNote: triggeredNotes.length > 0 ? `📌 Khống chế (${term}): ${triggeredNotes.join(' | ')}` : ''
+    };
+  });
+
+  return resultMap;
+}
+
+function computeHk1StudentRecords() {
+  const cfg = CONDUCT_CONFIG;
+  const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
+
+  // Nếu chọn HK1 hoặc HK2: Trả về trực tiếp kết quả của học kỳ đó
+  if (term === 'HK1' || term === 'HK2') {
+    return Object.values(computeSingleTermStudentRecords(term));
+  }
+
+  // NẾU CHỌN CẢ NĂM ('YEAR'): Tổng hợp từ HK1 và HK2 theo đúng Thông tư 22/2021/TT-BGDĐT
+  const hk1Map = computeSingleTermStudentRecords('HK1');
+  const hk2Map = computeSingleTermStudentRecords('HK2');
+  const allKeys = Array.from(new Set([...Object.keys(hk1Map), ...Object.keys(hk2Map)]));
+
+  const rankOrder = { 'Tốt': 4, 'Khá': 3, 'Đạt': 2, 'Chưa đạt': 1 };
+  const badgeMap = { 'Tốt': 'badge-success', 'Khá': 'badge-info', 'Đạt': 'badge-warning', 'Chưa đạt': 'badge-danger' };
+
+  return allKeys.map(key => {
+    const r1 = hk1Map[key] || {
+      excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+      maxSinglePenalty: 0, violatedCodes: [], totalPenalties: 0, totalBonuses: 0, details: [],
+      finalScoreNum: cfg.weeklyBaseScore, rank: 'Tốt', controlNote: ''
+    };
+    const r2 = hk2Map[key] || {
+      excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
+      maxSinglePenalty: 0, violatedCodes: [], totalPenalties: 0, totalBonuses: 0, details: [],
+      finalScoreNum: cfg.weeklyBaseScore, rank: 'Tốt', controlNote: ''
+    };
+    const baseInfo = hk1Map[key] || hk2Map[key];
+
+    const combinedRec = {
+      stt: baseInfo.stt,
+      classId: baseInfo.classId,
+      id: baseInfo.id,
+      name: baseInfo.name,
+      dob: baseInfo.dob,
+      gender: baseInfo.gender,
+      excusedAbsences: r1.excusedAbsences + r2.excusedAbsences,
+      unexcusedAbsences: r1.unexcusedAbsences + r2.unexcusedAbsences,
+      disciplineViolations: r1.disciplineViolations + r2.disciplineViolations,
+      trafficViolations: r1.trafficViolations + r2.trafficViolations,
+      maxSinglePenalty: Math.max(r1.maxSinglePenalty, r2.maxSinglePenalty),
+      violatedCodes: [...r1.violatedCodes, ...r2.violatedCodes],
+      totalPenalties: r1.totalPenalties + r2.totalPenalties,
+      totalBonuses: r1.totalBonuses + r2.totalBonuses,
+      details: [...r1.details, ...r2.details],
+      rankHk1: r1.rank,
+      rankHk2: r2.rank
+    };
+
+    const netPenalty = Math.max(0, combinedRec.totalPenalties - combinedRec.totalBonuses);
+    const avgYearScore = ((r1.finalScoreNum + r2.finalScoreNum) / 2).toFixed(1);
+
+    // 1. Xếp loại Cả năm chuẩn theo Điều 8 - Thông tư 22 (dựa trên xếp loại HK1 và HK2)
+    let yearRank = getYearRankByTT22(r1.rank, r2.rank);
+    let yearNotes = [`📋 Thông tư 22: HK1 (${r1.rank}) + HK2 (${r2.rank}) ➔ Cả năm: ${yearRank}`];
+
+    // 2. Kiểm tra thêm các tiêu chí khống chế tích lũy Cả năm (ví dụ nghỉ không phép cả năm >= 7 buổi...)
+    const yearRules = (cfg.rules || []).filter(rule => rule.scope === 'YEAR');
+    yearRules.forEach(rule => {
+      if (isRuleTriggered(combinedRec, rule, netPenalty)) {
+        if (rankOrder[rule.maxRank] < rankOrder[yearRank]) {
+          yearRank = rule.maxRank;
+          yearNotes.push(`[${rule.code}] ${rule.name} ➔ Hạ xuống ${rule.maxRank}`);
+        }
+      }
+    });
+
+    if (r1.controlNote) yearNotes.push(r1.controlNote);
+    if (r2.controlNote) yearNotes.push(r2.controlNote);
+
+    return {
+      ...combinedRec,
+      netPenalty: netPenalty.toFixed(1),
+      finalScore: avgYearScore,
+      rank: yearRank,
+      bClass: badgeMap[yearRank] || 'badge-gray',
+      controlNote: yearNotes.join(' | ')
     };
   });
 }
@@ -3299,22 +3426,30 @@ function renderHk1SummaryTable() {
   if (titleEl) {
     if (term === 'HK1') titleEl.textContent = `🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN HỌC KỲ I (${totalWeeks} TUẦN)`;
     else if (term === 'HK2') titleEl.textContent = `🎓 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN HỌC KỲ II (${totalWeeks} TUẦN)`;
-    else titleEl.textContent = `🏆 BẢNG TỔNG HỢP HỒ SƠ VI PHẠM & XẾP LOẠI RÈN LUYỆN CẢ NĂM HỌC (${totalWeeks} TUẦN)`;
+    else titleEl.textContent = `🏆 BẢNG TỔNG HỢP XẾP LOẠI RÈN LUYỆN CẢ NĂM HỌC (CHUẨN THÔNG TƯ 22/2021/TT-BGDĐT)`;
   }
 
-  // Hiển thị tóm tắt quy tắc động đang áp dụng
   const activeRules = (cfg.rules || []).filter(r => r.scope === 'ALL' || r.scope === scopeType);
   const descBox = document.getElementById('hk1RuleDescriptionBox');
   if (descBox) {
-    const formulaText = cfg.calcMethod === 'TOTAL_TERM'
-      ? `Quỹ điểm kỳ <strong>${cfg.weeklyBaseScore}đ - Tổng điểm trừ ròng</strong>`
-      : `Trung bình tuần = <strong>${cfg.weeklyBaseScore} - (Tổng trừ ròng / ${totalWeeks} tuần)</strong>`;
-    descBox.innerHTML = `
-      <strong>Công thức đang áp dụng:</strong> ${formulaText} 
-      (Mốc chuẩn: <strong>Tốt</strong> $\\ge$ ${cfg.minAvgGood} • <strong>Khá</strong> $\\ge$ ${cfg.minAvgFair} • <strong>Đạt</strong> $\\ge$ ${cfg.minAvgPass}).<br>
-      <strong>Đang kích hoạt ${activeRules.length} tiêu chí khống chế hạnh kiểm:</strong> 
-      ${activeRules.map(r => `<span class="badge badge-gray" style="margin:2px;">[${r.code}] ${r.name} (&le; ${r.maxRank})</span>`).join(' ')}
-    `;
+    if (term === 'YEAR') {
+      descBox.innerHTML = `
+        <strong>⚖️ Quy tắc xếp loại Cả Năm Học (Điều 8 - Thông tư 22/2021/TT-BGDĐT):</strong><br>
+        • <strong>Loại Tốt:</strong> HK2 đạt <em>Tốt</em> và HK1 đạt từ <em>Khá</em> trở lên.<br>
+        • <strong>Loại Khá:</strong> HK2 đạt <em>Khá</em> và HK1 từ <em>Đạt</em> trở lên; hoặc HK2 đạt <em>Đạt</em> và HK1 đạt <em>Tốt</em>; hoặc HK2 đạt <em>Tốt</em> và HK1 đạt <em>Đạt / Chưa đạt</em>.<br>
+        • <strong>Loại Đạt:</strong> HK2 đạt <em>Đạt</em> và HK1 đạt <em>Khá / Đạt / Chưa đạt</em>; hoặc HK2 đạt <em>Khá</em> và HK1 <em>Chưa đạt</em>. Các trường hợp còn lại xếp loại <strong>Chưa đạt</strong>.
+      `;
+    } else {
+      const formulaText = cfg.calcMethod === 'TOTAL_TERM'
+        ? `Quỹ điểm kỳ <strong>${cfg.weeklyBaseScore}đ - Tổng điểm trừ ròng</strong>`
+        : `Trung bình tuần = <strong>${cfg.weeklyBaseScore} - (Tổng trừ ròng / ${totalWeeks} tuần)</strong>`;
+      descBox.innerHTML = `
+        <strong>Công thức đang áp dụng (${term}):</strong> ${formulaText} 
+        (Mốc chuẩn 4 mức Thông tư 22: <strong>Tốt</strong> &ge; ${cfg.minAvgGood} • <strong>Khá</strong> &ge; ${cfg.minAvgFair} • <strong>Đạt</strong> &ge; ${cfg.minAvgPass}).<br>
+        <strong>Đang kích hoạt ${activeRules.length} tiêu chí khống chế hạnh kiểm:</strong> 
+        ${activeRules.map(r => `<span class="badge badge-gray" style="margin:2px;">[${r.code}] ${r.name} (&le; ${r.maxRank})</span>`).join(' ')}
+      `;
+    }
   }
 
   const records = computeHk1StudentRecords();
@@ -3350,8 +3485,12 @@ function renderHk1SummaryTable() {
   filtered.forEach((r, idx) => {
     const tr = document.createElement('tr');
     const detailHtml = r.details.length > 0 
-      ? r.details.join('; ') + (r.controlNote ? `<br><strong style="color:var(--danger);">${r.controlNote}</strong>` : '')
-      : '<span style="color:var(--text-muted);">Không vi phạm</span>';
+      ? r.details.join('; ') + (r.controlNote ? `<br><strong style="color:var(--primary);">${r.controlNote}</strong>` : '')
+      : (term === 'YEAR' && r.controlNote ? `<span style="color:var(--primary); font-weight:600;">${r.controlNote}</span>` : '<span style="color:var(--text-muted);">Không vi phạm</span>');
+
+    const termProgressHtml = (term === 'YEAR' && r.rankHk1 && r.rankHk2)
+      ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px;">HK1: <b>${r.rankHk1}</b> ➔ HK2: <b>${r.rankHk2}</b></div>`
+      : '';
 
     tr.innerHTML = `
       <td style="text-align:center;">${idx + 1}</td>
@@ -3369,7 +3508,10 @@ function renderHk1SummaryTable() {
         ${r.totalBonuses > 0 ? ` / <span style="color:var(--success);">+${r.totalBonuses}đ</span>` : ''}
       </td>
       <td style="text-align:center; font-weight:800; font-size:1.05rem; color:var(--primary);">${r.finalScore}</td>
-      <td style="text-align:center;"><span class="badge ${r.bClass}">${r.rank}</span></td>
+      <td style="text-align:center;">
+        <span class="badge ${r.bClass}">${r.rank}</span>
+        ${termProgressHtml}
+      </td>
       <td style="font-size:0.8rem; max-width:320px;">${detailHtml}</td>
     `;
     tbody.appendChild(tr);
@@ -3382,11 +3524,18 @@ function exportHk1Excel() {
   const classFilter = document.getElementById('hk1FilterClass') ? document.getElementById('hk1FilterClass').value : 'ALL';
   const filtered = records.filter(r => classFilter === 'ALL' || r.classId === classFilter);
 
-  let csv = `\uFEFFSTT,Lớp,Mã học sinh,Họ và tên,Ngày sinh,Giới tính,Nghỉ có phép,Nghỉ không phép,Lượt VP Nề nếp,Lượt VP ATGT,Tổng điểm trừ,Tổng điểm cộng,ĐTB Rèn luyện (${term}),Xếp loại đề xuất,Chi tiết vi phạm & Ghi chú khống chế\n`;
+  let csv = term === 'YEAR'
+    ? `\uFEFFSTT,Lớp,Mã học sinh,Họ và tên,Ngày sinh,Giới tính,Nghỉ có phép,Nghỉ không phép,Lượt VP Nề nếp,Lượt VP ATGT,Tổng điểm trừ,Tổng điểm cộng,ĐTB Rèn luyện,Xếp loại HK1,Xếp loại HK2,Xếp loại Cả Năm (TT22),Chi tiết vi phạm & Ghi chú\n`
+    : `\uFEFFSTT,Lớp,Mã học sinh,Họ và tên,Ngày sinh,Giới tính,Nghỉ có phép,Nghỉ không phép,Lượt VP Nề nếp,Lượt VP ATGT,Tổng điểm trừ,Tổng điểm cộng,ĐTB Rèn luyện (${term}),Xếp loại (${term}),Chi tiết vi phạm & Ghi chú khống chế\n`;
+
   filtered.forEach((r, idx) => {
     const fullNote = r.details.join('; ') + (r.controlNote ? ` [${r.controlNote}]` : '');
     const detailSanitized = `"${fullNote.replace(/"/g, '""')}"`;
-    csv += `${idx + 1},${r.classId},${r.id},"${r.name}",${r.dob},${r.gender},${r.excusedAbsences},${r.unexcusedAbsences},${r.disciplineViolations},${r.trafficViolations},-${r.totalPenalties},+${r.totalBonuses},${r.finalScore},${r.rank},${detailSanitized}\n`;
+    if (term === 'YEAR') {
+      csv += `${idx + 1},${r.classId},${r.id},"${r.name}",${r.dob},${r.gender},${r.excusedAbsences},${r.unexcusedAbsences},${r.disciplineViolations},${r.trafficViolations},-${r.totalPenalties},+${r.totalBonuses},${r.finalScore},${r.rankHk1 || ''},${r.rankHk2 || ''},${r.rank},${detailSanitized}\n`;
+    } else {
+      csv += `${idx + 1},${r.classId},${r.id},"${r.name}",${r.dob},${r.gender},${r.excusedAbsences},${r.unexcusedAbsences},${r.disciplineViolations},${r.trafficViolations},-${r.totalPenalties},+${r.totalBonuses},${r.finalScore},${r.rank},${detailSanitized}\n`;
+    }
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -5352,28 +5501,31 @@ function updatePendingBadge() {
 }
 
 // ==================== TRA CỨU ĐIỂM CÁ NHÂN ====================
+// ==================== TRA CỨU ĐIỂM CÁ NHÂN (ĐỒNG BỘ 4 MỨC THÔNG TƯ 22) ====================
 function renderStudentSearchTable() {
   const q = document.getElementById('studentSearchInput') ? document.getElementById('studentSearchInput').value.toLowerCase() : '';
   const fromDate = document.getElementById('searchFilterFrom') ? document.getElementById('searchFilterFrom').value : '';
   const toDate = document.getElementById('searchFilterTo') ? document.getElementById('searchFilterTo').value : '';
   
   const tbody = document.getElementById('studentSearchTableBody');
-  if(!tbody) return;
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   const map = {};
 
   violations.filter(v => {
-      // ĐÃ BỔ SUNG !v.isArchived ĐỂ CHỈ TÍNH TUẦN HIỆN TẠI (HOẶC KHI LỌC NGÀY)
-      if (v.status !== 'Đã duyệt' || v.isClassBonus) return false;
-      if (!fromDate && !toDate && v.isArchived) return false; 
-      if (fromDate && v.date < fromDate) return false;
-      if (toDate && v.date > toDate) return false;
-      return true;
+    if (v.status !== 'Đã duyệt' || v.isClassBonus) return false;
+    if (!fromDate && !toDate && v.isArchived) return false; 
+    if (fromDate && v.date < fromDate) return false;
+    if (toDate && v.date > toDate) return false;
+    return true;
   }).forEach(v => {
-    const key = `${v.classId}_${v.student}`;
+    const matched = (typeof matchStudentInClass === 'function') ? matchStudentInClass(v.classId, v.student) : null;
+    const stdName = matched ? matched.name : v.student.trim();
+    const key = matched ? matched.id : `${v.classId}_${stdName.toLowerCase()}`;
+
     if (!map[key]) {
-      map[key] = { classId: v.classId, name: v.student, minus: 0, plus: 0, details: [] };
+      map[key] = { classId: v.classId, name: stdName, minus: 0, plus: 0, details: [] };
     }
     if (v.points < 0) map[key].minus += Math.abs(v.points);
     else map[key].plus += v.points;
@@ -5388,9 +5540,12 @@ function renderStudentSearchTable() {
       if (toDate && a.date > toDate) return false;
       return true;
     }).forEach(a => {
-      const key = `${cid}_${a.student}`;
+      const matched = (typeof matchStudentInClass === 'function') ? matchStudentInClass(cid, a.student) : null;
+      const stdName = matched ? matched.name : a.student.trim();
+      const key = matched ? matched.id : `${cid}_${stdName.toLowerCase()}`;
+
       if (!map[key]) {
-        map[key] = { classId: cid, name: a.student, minus: 0, plus: 0, details: [] };
+        map[key] = { classId: cid, name: stdName, minus: 0, plus: 0, details: [] };
       }
       map[key].minus += Math.abs(a.point);
       map[key].details.push(`[SĐB ${a.date}] ${a.type === 'A01' ? 'Nghỉ có phép' : 'Nghỉ KHÔNG phép'} (${a.point}đ)`);
@@ -5403,20 +5558,23 @@ function renderStudentSearchTable() {
     return;
   }
 
+  const cfg = (typeof CONDUCT_CONFIG !== 'undefined') ? CONDUCT_CONFIG : { weeklyBaseScore: 100, minAvgGood: 90, minAvgFair: 75, minAvgPass: 50 };
+
   list.forEach(s => {
-    const finalPt = Math.max(0, Math.min(100, 100 - s.minus + s.plus));
-    let r = 'Xuất sắc'; let bc = 'badge-success';
-    if (finalPt >= 95) { r = 'Xuất sắc'; bc = 'badge-success'; }
-    else if (finalPt >= 90) { r = 'Tốt'; bc = 'badge-info'; }
-    else if (finalPt >= 80) { r = 'Khá'; bc = 'badge-warning'; }
-    else if (finalPt >= 65) { r = 'Đạt'; bc = 'badge-gray'; }
-    else { r = 'Chưa đạt'; bc = 'badge-danger'; }
+    const baseScore = cfg.weeklyBaseScore || 100;
+    const finalPt = Math.max(0, Math.min(baseScore, baseScore - s.minus + s.plus));
+
+    // Đồng bộ đúng 4 mức của Thông tư 22: Tốt, Khá, Đạt, Chưa đạt
+    let r = 'Chưa đạt'; let bc = 'badge-danger';
+    if (finalPt >= (cfg.minAvgGood || 90)) { r = 'Tốt'; bc = 'badge-success'; }
+    else if (finalPt >= (cfg.minAvgFair || 75)) { r = 'Khá'; bc = 'badge-info'; }
+    else if (finalPt >= (cfg.minAvgPass || 50)) { r = 'Đạt'; bc = 'badge-warning'; }
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>Chi đoàn ${s.classId}</strong></td>
       <td><strong>${s.name}</strong></td>
-      <td style="text-align:center;">100 đ</td>
+      <td style="text-align:center;">${baseScore} đ</td>
       <td style="text-align:center; color:var(--danger); font-weight:600;">-${s.minus.toFixed(1)} đ</td>
       <td style="text-align:center; color:var(--success); font-weight:600;">+${s.plus} đ</td>
       <td style="text-align:center; font-weight:800; font-size:1.05rem; color:var(--primary);">${finalPt.toFixed(1)} đ</td>
@@ -5426,7 +5584,6 @@ function renderStudentSearchTable() {
     tbody.appendChild(tr);
   });
 }
-
 // ==================== QUẢN LÝ 85 TÀI KHOẢN (ADMIN) ====================
 function addNewAccount() {
   // Chèn 1 tài khoản rỗng lên đầu danh sách
@@ -5675,12 +5832,10 @@ function exportStudentViolationsCSV() {
   let csv = "\uFEFFChi đoàn,Họ và tên học sinh,Tổng trừ,Tổng cộng,Điểm rèn luyện còn lại,Xếp loại,Chi tiết vi phạm/nghỉ học\n";
   list.forEach(s => {
     const finalPt = Math.max(0, Math.min(100, 100 - s.minus + s.plus));
-    let r = 'Xuất sắc'; 
-    if (finalPt >= 95) r = 'Xuất sắc';
-    else if (finalPt >= 90) r = 'Tốt';
-    else if (finalPt >= 80) r = 'Khá';
-    else if (finalPt >= 65) r = 'Đạt';
-    else r = 'Chưa đạt';
+    let r = 'Chưa đạt';
+    if (finalPt >= (CONDUCT_CONFIG?.minAvgGood || 90)) r = 'Tốt';
+    else if (finalPt >= (CONDUCT_CONFIG?.minAvgFair || 75)) r = 'Khá';
+    else if (finalPt >= (CONDUCT_CONFIG?.minAvgPass || 50)) r = 'Đạt';
 
     const detailSanitized = `"${s.details.join('; ').replace(/"/g, '""')}"`;
     csv += `Chi đoàn ${s.classId},"${s.name}",-${s.minus.toFixed(1)},+${s.plus},${finalPt.toFixed(1)},${r},${detailSanitized}\n`;
