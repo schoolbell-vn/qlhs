@@ -2085,12 +2085,10 @@ async function fetchDatabaseFromCloud(force = false) {
       localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
     }
 
-    // Nạp Lịch sử chốt tuần từ Đám mây (Bảo vệ chống ghi đè rỗng)
+    // Nạp Lịch sử chốt tuần từ Đám mây (Đồng bộ chuẩn xác kể cả khi Admin đã xóa/hoàn tác về 0 tuần)
     if (db.history && Array.isArray(db.history)) {
-      if (db.history.length > 0 || weeklyHistory.length === 0) {
-        weeklyHistory = db.history;
-        localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
-      }
+      weeklyHistory = db.history;
+      localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
     }
    // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận)
    if (db.users && Array.isArray(db.users) && db.users.length > 1) {
@@ -2656,6 +2654,27 @@ function connectMqtt() {
               setupUserSessionUI();
             }
           }
+        }
+        else if (payload.action === 'SYNC_HISTORY_STATE') {
+          // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
+          if (Array.isArray(payload.data.history)) {
+            weeklyHistory = payload.data.history;
+            localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
+          }
+          if (Array.isArray(payload.data.violations)) {
+            violations = payload.data.violations;
+            localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+          }
+          if (payload.data.sdb) {
+            sdbFullData = payload.data.sdb;
+            localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+          }
+          if (typeof populateWeekFinalizeDropdown === 'function') populateWeekFinalizeDropdown();
+          if (typeof renderHistoryTable === 'function') renderHistoryTable();
+          if (typeof renderStudentSearchTable === 'function') renderStudentSearchTable();
+          if (typeof renderAlerts === 'function') renderAlerts();
+          if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
+          if (typeof renderHk1ClassTable === 'function') renderHk1ClassTable();
         }
 
         renderLeaderboard();
@@ -4258,6 +4277,7 @@ function renderAdminSdbOverviewTable() {
 // ==================== TÍNH TOÁN BẢNG XẾP HẠNG 36 CHI ĐOÀN (HIỂN THỊ RÕ TUẦN & NGÀY THÁNG) ====================
 
 // Hàm khởi tạo danh sách chọn Tuần trên Bảng Xếp Hạng và tự động chọn Tuần hiện tại
+// Hàm khởi tạo danh sách chọn Tuần trên Bảng Xếp Hạng và tự động đồng bộ dấu tích (✅) khi Chốt / Hoàn tác
 function initBoardWeekSelect() {
   const sel = document.getElementById('boardFilterWeek');
   if (!sel) return;
@@ -4265,9 +4285,16 @@ function initBoardWeekSelect() {
   const startStr = (typeof getWeek1StartDate === 'function') ? getWeek1StartDate() : (localStorage.getItem('yka_week1_start') || '2026-09-07');
   const currentSelected = sel.value;
 
-  // Nếu chưa tạo danh sách hoặc ngày bắt đầu Tuần 1 vừa thay đổi thì vẽ lại
-  if (sel.options.length === 0 || sel.dataset.baseStart !== startStr) {
-    sel.dataset.baseStart = startStr;
+  // Tạo dấu vân tay ghi nhận các tuần đã chốt để tự động vẽ lại ngay khi Chốt hoặc Hoàn tác
+  const finalizedWeeksKey = weeklyHistory
+    .filter(h => !h.type || h.type === 'WEEK')
+    .map(h => h.weekNumber || h.week)
+    .join(',');
+  const stateSignature = `${startStr}|${finalizedWeeksKey}`;
+
+  // Nếu chưa tạo danh sách, hoặc đổi ngày Tuần 1, hoặc vừa Chốt / Xóa tuần thì vẽ lại ngay
+  if (sel.options.length === 0 || sel.dataset.stateSignature !== stateSignature) {
+    sel.dataset.stateSignature = stateSignature;
     sel.innerHTML = '';
 
     const baseDate = new Date(startStr + 'T00:00:00');
@@ -6586,6 +6613,13 @@ function deleteHistoryWeek(originalIdx) {
   localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
   if (typeof syncDataToCloud === 'function') syncDataToCloud("db_history.json", weeklyHistory);
 
+  // Bắn tín hiệu trực tiếp cho tất cả các máy Admin/GVCN khác đang mở cập nhật ngay lập tức
+  publishUpdate('SYNC_HISTORY_STATE', {
+    history: weeklyHistory,
+    violations: violations,
+    sdb: sdbFullData
+  });
+
   renderLeaderboard();
   renderStudentSearchTable();
   renderAlerts();
@@ -6668,7 +6702,11 @@ function finalizeWeek() {
     }
   });
   updateSdbLocalAndCloud();
-
+  publishUpdate('SYNC_HISTORY_STATE', {
+    history: weeklyHistory,
+    violations: violations,
+    sdb: sdbFullData
+  });
   currentHistoryMode = 'WEEK';
   selectedHistoryIndex = 0;
   populateWeekFinalizeDropdown();
