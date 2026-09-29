@@ -5489,6 +5489,32 @@ function renderReviewTable() {
 }
 // ==================== CHỨC NĂNG HỌC SINH/GVCN KHIẾU NẠI LỖI ====================
 // ==================== CHỨC NĂNG HỌC SINH/GVCN KHIẾU NẠI LỖI ====================
+// Hàm gửi lệnh sửa lẻ 1 biên bản lên Google Drive (Tuyệt đối không ghi đè toàn bộ file)
+async function updateSingleViolationStatusOnCloud(id, status, evidence) {
+  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "update_single_violation", id: id, status: status, evidence: evidence })
+    });
+  } catch (e) { console.error("Lỗi cập nhật trạng thái biên bản lẻ:", e); }
+}
+
+// Hàm gửi lệnh xóa lẻ 1 biên bản trên Google Drive
+async function deleteSingleViolationOnCloud(id) {
+  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: "delete_single_violation", id: id })
+    });
+  } catch (e) { console.error("Lỗi xóa biên bản lẻ:", e); }
+}
+
 function studentDisputeViolation(id) {
   const it = violations.find(v => v.id === id);
   if (it) {
@@ -5499,11 +5525,8 @@ function studentDisputeViolation(id) {
       it.status = 'Khiếu nại'; 
       it.evidence += `\n🔴 [${senderLabel} KHIẾU NẠI]: ${reason.trim()}`;
       
-      updateViolationsLocalAndCloud();
-      
-      if (typeof publishUpdate === 'function') {
-        publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Khiếu nại', evidence: it.evidence });
-      }
+      updateSingleViolationStatusOnCloud(it.id, it.status, it.evidence);
+      publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Khiếu nại', evidence: it.evidence });
       
       renderReviewTable();
       renderLeaderboard();
@@ -5512,11 +5535,14 @@ function studentDisputeViolation(id) {
     }
   }
 }
+
 function approveViolation(id) {
   const it = violations.find(v => v.id === id);
   if (it) {
     it.status = 'Đã duyệt';
-    updateViolationsLocalAndCloud();
+    updateSingleViolationStatusOnCloud(it.id, 'Đã duyệt', it.evidence);
+    publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Đã duyệt', evidence: it.evidence });
+
     renderReviewTable();
     renderLeaderboard();
     if (loggedUser.role === 'codo') renderCodoLogsTable();
@@ -5532,9 +5558,12 @@ function disputeViolation(id) {
     if (reason) {
       it.status = 'Khiếu nại';
       it.evidence += ` [Khiếu nại: ${reason}]`;
-      updateViolationsLocalAndCloud();
+      updateSingleViolationStatusOnCloud(it.id, 'Khiếu nại', it.evidence);
+      publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Khiếu nại', evidence: it.evidence });
+
       renderReviewTable();
       renderLeaderboard();
+      updatePendingBadge();
     }
   }
 }
@@ -5544,30 +5573,26 @@ function cancelViolation(id) {
     const it = violations.find(v => v.id === id);
     if (it) {
       it.status = 'Đã hủy';
-      updateViolationsLocalAndCloud();
+      updateSingleViolationStatusOnCloud(it.id, 'Đã hủy', it.evidence);
+      publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Đã hủy', evidence: it.evidence });
+
       renderReviewTable();
       renderLeaderboard();
       updatePendingBadge();
     }
   }
 }
+
 function deleteViolationPermanently(id) {
   const it = violations.find(v => v.id === id);
   if (!it) return;
 
   if (confirm(`🗑️ XÓA VĨNH VIỄN BIÊN BẢN / TỐ GIÁC SAI SỰ THẬT:\n\n- Học sinh: ${it.student} (Lớp ${it.classId})\n- Nội dung: ${it.name}\n\nBạn có chắc chắn muốn xóa sạch dữ liệu này khỏi hệ thống và Google Drive không?`)) {
-    // 1. Loại bỏ hoàn toàn khỏi mảng biên bản
     violations = violations.filter(v => v.id !== id);
 
-    // 2. Lưu đè danh sách mới lên máy và Google Drive
-    updateViolationsLocalAndCloud();
+    deleteSingleViolationOnCloud(id);
+    publishUpdate('DELETE_VIOLATION', { id: id });
 
-    // 3. Báo qua MQTT để xóa ngay trên các máy khác đang mở
-    if (typeof publishUpdate === 'function') {
-      publishUpdate('DELETE_VIOLATION', { id: id });
-    }
-
-    // 4. Cập nhật lại seluruh bảng hiển thị
     renderReviewTable();
     renderLeaderboard();
     renderStudentSearchTable();
