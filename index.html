@@ -5471,8 +5471,9 @@ function renderReviewTable() {
       <td style="font-size:0.8rem;">${v.recorder}</td>
       <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status || 'Chờ duyệt'}</span></td>
       <td style="text-align:center;" class="no-print">
-        ${(loggedUser && loggedUser.role === 'admin') ? `
+       ${(loggedUser && loggedUser.role === 'admin') ? `
           <button class="btn btn-success btn-sm" onclick="approveViolation(${v.id})" title="Duyệt">Duyệt</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--primary-light); border-color:#93c5fd; font-weight:700;" onclick="editViolationRecord(${v.id})" title="Sửa tên học sinh hoặc lớp">✏️ Sửa</button>
           <button class="btn btn-outline btn-sm" onclick="disputeViolation(${v.id})" title="Khiếu nại">Khiếu nại</button>
           <button class="btn btn-danger btn-sm" onclick="cancelViolation(${v.id})" title="Hủy">Hủy</button>
           <button class="btn btn-danger btn-sm" style="background:#dc2626; color:white;" onclick="deleteViolationPermanently(${v.id})" title="Xóa vĩnh viễn khỏi hệ thống">🗑️ Xóa</button>
@@ -5534,6 +5535,48 @@ function studentDisputeViolation(id) {
       alert('✅ Đã gửi khiếu nại thành công! Hệ thống đã báo lên tài khoản Admin/BTV Đoàn trường.');
     }
   }
+}
+
+function editViolationRecord(id) {
+  const it = violations.find(v => v.id === id);
+  if (!it) return;
+
+  const newClass = prompt(`✏️ SỬA BIÊN BẢN VI PHẠM\n\n1. Chi đoàn của học sinh (Hiện tại: ${it.classId}):`, it.classId);
+  if (newClass === null) return;
+
+  const newStudent = prompt(`2. Nhập lại Họ và tên đúng của học sinh vi phạm (Hiện tại: ${it.student}):`, it.student);
+  if (newStudent === null || !newStudent.trim()) return;
+
+  const oldName = it.student;
+  it.classId = newClass.trim().toUpperCase();
+  it.student = newStudent.trim().toUpperCase();
+  it.evidence += `\n✅ [BTV đã đính chính tên từ "${oldName}" ➔ "${it.student}"]`;
+  it.status = 'Đã duyệt'; // Tự động duyệt luôn sau khi Admin đã xác minh và sửa đúng tên
+
+  // Lưu lẻ hoặc lưu đồng bộ lên Cloud
+  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  fetch(MASTER_APP_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      action: "update_single_violation",
+      id: it.id,
+      classId: it.classId,
+      student: it.student,
+      status: it.status,
+      evidence: it.evidence
+    })
+  });
+
+  publishUpdate('SYNC_HISTORY_STATE', { history: weeklyHistory, violations: violations, sdb: sdbFullData });
+
+  renderReviewTable();
+  renderLeaderboard();
+  renderStudentSearchTable();
+  if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
+  updatePendingBadge();
+  alert(`✅ Đã đổi tên thành công sang [${it.student} - Lớp ${it.classId}] và chuyển sang trạng thái Đã duyệt!`);
 }
 
 function approveViolation(id) {
