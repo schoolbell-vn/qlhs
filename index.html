@@ -688,8 +688,13 @@
             </div>
             <div class="form-group">
               <label>Chi đoàn vi phạm (*):</label>
-              <select id="codoClassSelect" required></select>
-              <span style="font-size:0.75rem; color:#dc2626;">Hệ thống khóa: Bạn chỉ được ghi nhận lỗi cho lớp được phân công chấm!</span>
+              <div style="display:flex; gap:0.4rem;">
+                <select id="codoClassSelect" style="flex:1; font-weight:bold; color:var(--primary);" required></select>
+                <button type="button" id="btnLockMyCodoClass" class="btn btn-primary btn-sm" onclick="confirmAndLockMyCodoClass()" style="display:none; white-space:nowrap;">
+                  📌 Chốt lớp chấm
+                </button>
+              </div>
+              <span id="codoClassLockNotice" style="font-size:0.75rem; color:#dc2626;">Hệ thống khóa: Bạn chỉ được ghi nhận lỗi cho lớp được phân công chấm!</span>
             </div>
             <div class="form-group">
               <label>Họ và tên học sinh vi phạm (*):</label>
@@ -1291,6 +1296,39 @@
             <option value="bgh">🏫 Ban Giám Hiệu / BCH</option>
             <option value="admin">👑 Ban Quản Trị (Admin)</option>
           </select>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminUnlockAllCodoSelection()" style="border-color:var(--warning); color:#b45309; background:#fffbeb;">
+            🔓 Mở khóa cho Cờ đỏ tự chọn
+          </button>
+          <div style="display:inline-flex; align-items:center; gap:0.25rem; background:#eff6ff; padding:0.2rem 0.45rem; border-radius:8px; border:1px solid #93c5fd;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="adminStepCodoCircle(-1)" title="Quay lùi lại 1 lớp (nếu lỡ bấm quá tay)" style="padding:0.25rem 0.5rem; font-weight:700; color:var(--danger); border-color:#fca5a5;">
+              ⏪ Lùi 1
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="adminStepCodoCircle(1)" title="Tiến lên 1 lớp tiếp theo (12A1->12A2...12A12->11A1...10A12->12A1)" style="padding:0.25rem 0.6rem; font-weight:700;">
+              ⏩ Xoay Tiến +1
+            </button>
+            <select id="codoJumpWeekSelect" onchange="if(this.value) { adminSetCodoByWeek(parseInt(this.value)); this.value=''; }" style="font-size:0.78rem; padding:0.22rem 0.4rem; border-radius:6px; border:1px solid var(--primary-light); font-weight:700; color:var(--primary); background:white; cursor:pointer;">
+              <option value="">🎯 Đặt lại chuẩn theo Tuần...</option>
+              <option value="0">🔄 Reset về Lớp gốc (Chưa xoay)</option>
+              <option value="1">📌 Chuẩn Tuần 1 (12A1➔12A2, 12A12➔11A1...)</option>
+              <option value="2">📌 Chuẩn Tuần 2 (+2 bước)</option>
+              <option value="3">📌 Chuẩn Tuần 3 (+3 bước)</option>
+              <option value="4">📌 Chuẩn Tuần 4 (+4 bước)</option>
+              <option value="5">📌 Chuẩn Tuần 5 (+5 bước)</option>
+              <option value="6">📌 Chuẩn Tuần 6 (+6 bước)</option>
+              <option value="7">📌 Chuẩn Tuần 7 (+7 bước)</option>
+              <option value="8">📌 Chuẩn Tuần 8 (+8 bước)</option>
+              <option value="9">📌 Chuẩn Tuần 9 (+9 bước)</option>
+              <option value="10">📌 Chuẩn Tuần 10 (+10 bước)</option>
+              <option value="11">📌 Chuẩn Tuần 11 (+11 bước)</option>
+              <option value="12">📌 Chuẩn Tuần 12 (+12 bước)</option>
+              <option value="13">📌 Chuẩn Tuần 13 (+13 bước)</option>
+              <option value="14">📌 Chuẩn Tuần 14 (+14 bước)</option>
+              <option value="15">📌 Chuẩn Tuần 15 (+15 bước)</option>
+              <option value="16">📌 Chuẩn Tuần 16 (+16 bước)</option>
+              <option value="17">📌 Chuẩn Tuần 17 (+17 bước)</option>
+              <option value="18">📌 Chuẩn Tuần 18 (+18 bước)</option>
+            </select>
+          </div>
           <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
           <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
         </div>
@@ -4274,28 +4312,226 @@ function renderLeaderboard() {
   }).length;
   document.getElementById('approvedCountStat').textContent = approvedCount;
 }
+// ==================== QUẢN LÝ CỜ ĐỎ TỰ CHỌN LỚP & XOAY VÒNG LIÊN KHỐI 35 TUẦN ====================
+// ==================== QUẢN LÝ CỜ ĐỎ TỰ CHỌN LỚP & XOAY VÒNG LIÊN KHỐI 35 TUẦN ====================
 function setupCodoForm() {
   document.getElementById('codoRecorderInput').value = loggedUser.name;
   const classSel = document.getElementById('codoClassSelect');
+  const btnLock = document.getElementById('btnLockMyCodoClass');
+  const noticeEl = document.getElementById('codoClassLockNotice');
+  if (!classSel) return;
   classSel.innerHTML = '';
 
-  const assigned = loggedUser.scope;
-  document.getElementById('codoAssignedScopeBadge').textContent = `Lớp phụ trách: ${assigned.join(', ')}`;
+  const currentUserObj = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase()) || loggedUser;
+  const homeClass = currentUserObj.username.replace('codo_', '').toUpperCase();
+  const currentAssigned = (currentUserObj.scope && currentUserObj.scope[0]) ? currentUserObj.scope[0].toUpperCase() : '';
 
-  assigned.forEach(cid => {
-    const opt = document.createElement('option');
-    opt.value = cid;
-    opt.textContent = `Chi đoàn ${cid}`;
-    classSel.appendChild(opt);
-  });
+  // Tự động MỞ KHÓA nếu: Admin bấm mở (false), HOẶC chưa từng chốt (undefined), HOẶC lớp đang gán vẫn trùng với lớp gốc của mình
+  const isUnlockedForSelection = (
+    currentUserObj.codoLocked === false || 
+    currentUserObj.codoLocked === undefined || 
+    currentAssigned === homeClass
+  );
 
-  // VÁ LỖI: Kích hoạt danh sách học sinh ngay cho lớp mặc định đầu tiên
-  if (classSel.value) {
-    updateStudentDatalist(classSel.value);
+  if (loggedUser.role === 'admin') {
+    CLASSES.forEach(c => {
+      classSel.innerHTML += `<option value="${c.id}">Chi đoàn ${c.id}</option>`;
+    });
+    if (btnLock) btnLock.style.display = 'none';
+    if (noticeEl) noticeEl.innerHTML = `<span style="color:var(--success); font-weight:600;">👑 Quyền Admin: Được phép chọn tất cả 36 chi đoàn.</span>`;
+    document.getElementById('codoAssignedScopeBadge').textContent = `Phạm vi: Toàn trường (36 lớp)`;
+  } else if (isUnlockedForSelection) {
+    CLASSES.forEach(c => {
+      const selectedAttr = (currentAssigned === c.id) ? 'selected' : '';
+      classSel.innerHTML += `<option value="${c.id}" ${selectedAttr}>Chi đoàn ${c.id}</option>`;
+    });
+    classSel.disabled = false;
+    if (btnLock) btnLock.style.display = 'inline-flex';
+    if (noticeEl) {
+      noticeEl.innerHTML = `<strong style="color:var(--warning);">🔓 Đang mở chọn lớp:</strong> Hãy chọn đúng lớp bạn được phân công chấm tuần này rồi bấm nút <strong>"📌 Chốt lớp chấm"</strong> để khóa lại!`;
+    }
+    document.getElementById('codoAssignedScopeBadge').textContent = `⏳ Chưa chốt lớp chấm tuần này`;
+  } else {
+    const assigned = currentUserObj.scope || loggedUser.scope || [];
+    assigned.forEach(cid => {
+      classSel.innerHTML += `<option value="${cid}">Chi đoàn ${cid} (Đã khóa)</option>`;
+    });
+    if (btnLock) btnLock.style.display = 'none';
+    if (noticeEl) {
+      noticeEl.innerHTML = `<span style="color:var(--success); font-weight:600;">🔒 Đã khóa phân công tuần này: Chi đoàn ${assigned.join(', ')}</span> (Nếu nhầm, hãy báo Admin mở khóa).`;
+    }
+    document.getElementById('codoAssignedScopeBadge').textContent = `🔒 Lớp chấm tuần này: ${assigned.join(', ')}`;
   }
-  // Tự động nạp học sinh cho lớp mặc định đầu tiên
+
   if (classSel.value) updateStudentDatalist(classSel.value);
   renderCodoLogsTable();
+}
+
+// 1. Khi Cờ đỏ chọn lớp xong và bấm "📌 Chốt lớp chấm" -> Tự động khóa ngay
+async function confirmAndLockMyCodoClass() {
+  const classSel = document.getElementById('codoClassSelect');
+  if (!classSel || !classSel.value) return;
+  const chosenClass = classSel.value;
+
+  const homeClass = loggedUser.username.replace('codo_', '').toUpperCase();
+  if (chosenClass === homeClass) {
+    alert(`⛔ Bạn là Cờ đỏ của lớp ${homeClass}, không được chọn tự chấm chính lớp mình!`);
+    return;
+  }
+
+  const conflictUser = systemUsers.find(u => 
+    u.role === 'codo' && 
+    u.username.toLowerCase() !== loggedUser.username.toLowerCase() && 
+    u.codoLocked === true && 
+    Array.isArray(u.scope) && 
+    u.scope.includes(chosenClass)
+  );
+
+  if (conflictUser) {
+    if (!confirm(`⚠️ CẢNH BÁO TRÙNG LỚP:\nChi đoàn ${chosenClass} hiện đã được [${conflictUser.name}] nhận chấm.\n\nBạn có chắc chắn mình được phân công chấm lớp ${chosenClass} không?`)) {
+      return;
+    }
+  } else {
+    if (!confirm(`📌 XÁC NHẬN NHẬN LỚP CHẤM:\n\nBạn xác nhận tuần này mình chấm [Chi đoàn ${chosenClass}]?\nSau khi bấm OK, hệ thống sẽ KHÓA chọn lớp lại.`)) {
+      return;
+    }
+  }
+
+  const userIdx = systemUsers.findIndex(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+  if (userIdx !== -1) {
+    systemUsers[userIdx].scope = [chosenClass];
+    systemUsers[userIdx].codoLocked = true;
+  }
+
+  loggedUser.scope = [chosenClass];
+  loggedUser.codoLocked = true;
+  sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+
+  lastCloudFetchTime = Date.now();
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  await syncDataToCloud("db_users.json", systemUsers);
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
+
+  setupUserSessionUI();
+  alert(`✅ Đã chốt và khóa phân công thành công: Chi đoàn ${chosenClass}!`);
+}
+
+// DANH SÁCH VÒNG TRÒN 36 LỚP KHÉP KÍN: 12A1..12A12 -> 11A1..11A12 -> 10A1..10A12 -> Quay về 12A1
+const CODO_RING_36 = [];
+['12', '11', '10'].forEach(g => {
+  for (let i = 1; i <= 12; i++) CODO_RING_36.push(`${g}A${i}`);
+});
+
+// Mở khóa đồng loạt cho 36 Cờ đỏ tự chọn lớp
+async function adminUnlockAllCodoSelection() {
+  lastCloudFetchTime = Date.now() + 60000;
+  isFetchingCloud = false;
+
+  systemUsers.forEach(u => {
+    if (u.role === 'codo') u.codoLocked = false;
+  });
+
+  const roleFilterEl = document.getElementById('userFilterRole');
+  if (roleFilterEl) roleFilterEl.value = 'codo';
+
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  renderAdminUsersTable();
+
+  const pNotice = document.querySelector('#tab-admin-users .card-body p');
+  if (pNotice) {
+    pNotice.innerHTML = `<strong style="color:#b45309; background:#fffbeb; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #fde68a; display:inline-block;">🔓 ĐÃ MỞ KHÓA: Toàn bộ 36 tài khoản Cờ đỏ hiện đã có thể tự chọn lớp chấm!</strong>`;
+  }
+
+  await syncDataToCloud("db_users.json", systemUsers);
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
+}
+
+// Hàm Tiến (+1) hoặc Lùi (-1) trên vòng tròn 36 lớp
+async function adminStepCodoCircle(stepDelta) {
+  lastCloudFetchTime = Date.now() + 60000;
+  isFetchingCloud = false;
+
+  const total = CODO_RING_36.length; // 36 lớp
+  let preview = [];
+
+  systemUsers.forEach(u => {
+    if (u.role !== 'codo') return;
+
+    const homeClass = u.username.replace('codo_', '').trim().toUpperCase();
+    const curTarget = (u.scope && u.scope[0]) ? String(u.scope[0]).trim().toUpperCase() : homeClass;
+
+    let curIdx = CODO_RING_36.indexOf(curTarget);
+    if (curIdx === -1) curIdx = CODO_RING_36.indexOf(homeClass);
+    if (curIdx === -1) return;
+
+    // Tính vị trí mới trên vòng tròn 36 lớp (hỗ trợ cả tiến +1 và lùi -1)
+    let nextIdx = (curIdx + stepDelta + total) % total;
+    const nextClass = CODO_RING_36[nextIdx];
+
+    u.scope = [nextClass];
+    u.codoLocked = (nextClass !== homeClass);
+
+    if (['12A1', '12A12', '11A12', '10A12'].includes(homeClass)) {
+      preview.push(`${homeClass} ➔ ${nextClass}`);
+    }
+  });
+
+  const roleFilterEl = document.getElementById('userFilterRole');
+  if (roleFilterEl) roleFilterEl.value = 'codo';
+
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  renderAdminUsersTable();
+
+  const pNotice = document.querySelector('#tab-admin-users .card-body p');
+  if (pNotice) {
+    const dirText = stepDelta > 0 ? '⏩ ĐÃ XOAY TIẾN (+1 LỚP)' : '⏪ ĐÃ QUAY LÙI (-1 LỚP)';
+    pNotice.innerHTML = `<strong style="color:var(--success); background:#dcfce7; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #86efac; display:inline-block;">${dirText}: ${preview.join(' | ')} (Đã khóa phân công)</strong>`;
+  }
+
+  await syncDataToCloud("db_users.json", systemUsers);
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
+}
+
+// Hàm đặt lại chuẩn xác theo số Tuần (1 -> 35) hoặc Reset (0) bất chấp trước đó đã bấm nhầm bao nhiêu lần
+async function adminSetCodoByWeek(weekNum) {
+  lastCloudFetchTime = Date.now() + 60000;
+  isFetchingCloud = false;
+
+  const total = CODO_RING_36.length; // 36 lớp
+  let preview = [];
+
+  systemUsers.forEach(u => {
+    if (u.role !== 'codo') return;
+
+    const homeClass = u.username.replace('codo_', '').trim().toUpperCase();
+    const homeIdx = CODO_RING_36.indexOf(homeClass);
+    if (homeIdx === -1) return;
+
+    const targetIdx = (homeIdx + weekNum) % total;
+    const targetClass = CODO_RING_36[targetIdx];
+
+    u.scope = [targetClass];
+    u.codoLocked = (weekNum > 0);
+
+    if (['12A1', '12A12', '11A12', '10A12'].includes(homeClass)) {
+      preview.push(`${homeClass} ➔ ${targetClass}`);
+    }
+  });
+
+  const roleFilterEl = document.getElementById('userFilterRole');
+  if (roleFilterEl) roleFilterEl.value = 'codo';
+
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  renderAdminUsersTable();
+
+  const pNotice = document.querySelector('#tab-admin-users .card-body p');
+  if (pNotice) {
+    const label = weekNum === 0 ? '🔄 ĐÃ RESET VỀ LỚP GỐC' : `📌 ĐÃ ĐẶT CHUẨN TUẦN ${weekNum}`;
+    pNotice.innerHTML = `<strong style="color:var(--primary); background:#eff6ff; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #93c5fd; display:inline-block;">${label}: ${preview.join(' | ')}</strong>`;
+  }
+
+  await syncDataToCloud("db_users.json", systemUsers);
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
 }
 
 function onCodoRuleChange() {
