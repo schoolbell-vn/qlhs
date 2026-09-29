@@ -1286,15 +1286,16 @@
     <div class="card">
       <div class="card-header">
         <h2>👥 DANH SÁCH TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 CHI ĐOÀN</h2>
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" class="no-print">
-          <select id="userFilterRole" onchange="renderAdminUsersTable()" style="font-size:0.82rem; padding:0.3rem 0.6rem;">
-            <option value="ALL">Tất cả tài khoản (121 TK)</option>
-            <option value="sdb">📖 36 Tài khoản Sổ Đầu Bài</option>
-            <option value="codo">🚩 36 Tài khoản Cờ Đỏ</option>
-            <option value="gvcn">👩‍🏫 36 Tài khoản GVCN</option>
-            <option value="tnxk">⚡ 12 Tài khoản Đội TNXK</option>
-            <option value="bgh">🏫 Ban Giám Hiệu / BCH</option>
-            <option value="admin">👑 Ban Quản Trị (Admin)</option>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;" class="no-print">
+          <input type="text" id="userSearchInput" onkeyup="renderAdminUsersTable()" placeholder="🔍 Tìm tài khoản, tên, lớp (VD: 10A1)..." style="width:230px; font-size:0.82rem; padding:0.35rem 0.7rem; border:2px solid var(--primary-light);">
+          <select id="userFilterRole" onchange="renderAdminUsersTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem; font-weight:700; color:var(--primary);">
+            <option value="ALL">📋 Tất cả tài khoản</option>
+            <option value="sdb">📖 Sổ Đầu Bài (36)</option>
+            <option value="codo">🚩 Đội Cờ Đỏ (36)</option>
+            <option value="gvcn">👩‍🏫 Giáo Viên CN (36)</option>
+            <option value="tnxk">⚡ Đội TNXK (12)</option>
+            <option value="bgh">🏫 BGH / BCH Đoàn</option>
+            <option value="admin">👑 Quản Trị (Admin)</option>
           </select>
           <button type="button" class="btn btn-outline btn-sm" onclick="adminUnlockAllCodoSelection()" style="border-color:var(--warning); color:#b45309; background:#fffbeb;">
             🔓 Mở khóa cho Cờ đỏ tự chọn
@@ -5736,36 +5737,67 @@ function renderStudentSearchTable() {
     tbody.appendChild(tr);
   });
 }
-// ==================== QUẢN LÝ 85 TÀI KHOẢN (ADMIN) ====================
+// ==================== QUẢN LÝ TÀI KHOẢN & BỘ LỌC NHANH (ADMIN) ====================
+function quickFilterUserRole(role) {
+  const sel = document.getElementById('userFilterRole');
+  if (sel) {
+    sel.value = role;
+    renderAdminUsersTable();
+  }
+}
+
 function addNewAccount() {
-  // Chèn 1 tài khoản rỗng lên đầu danh sách
+  const customUsername = prompt("➕ THÊM TÀI KHOẢN MỚI CHO BGH / BCH / GV:\n\nNhập Tên đăng nhập muốn tạo (viết liền không dấu, VD: bgh_hieutruong, bch_nam...):", "bgh_");
+  if (customUsername === null) return;
+
+  const cleanUsername = customUsername.trim().toLowerCase().replace(/\s+/g, '_');
+  if (!cleanUsername) {
+    alert("⚠️ Tên đăng nhập không được để trống!");
+    return;
+  }
+
+  if (systemUsers.some(u => u.username.toLowerCase() === cleanUsername)) {
+    alert(`⛔ Tên đăng nhập [${cleanUsername}] đã tồn tại! Vui lòng đặt tên khác.`);
+    return;
+  }
+
+  const customName = prompt("Nhập Họ tên / Chức vụ hiển thị (VD: Thầy Hiệu Trưởng, Cô Phó Hiệu Trưởng...):", "Ban Giám Hiệu") || "Cán bộ / Giáo viên";
+
+  // Chèn tài khoản mới lên đầu danh sách
   systemUsers.unshift({
-    username: 'tk_moi_' + Math.floor(Math.random() * 1000),
+    username: cleanUsername,
     pass: '123456',
-    name: 'Tên giáo viên / Cán bộ',
+    name: customName.trim(),
     role: 'bgh',
     scope: [],
     sdbClass: null
   });
-  renderAdminUsersTable(); // Vẽ lại bảng để hiện dòng mới lên đầu
+
+  // Tự động chuyển bộ lọc về nhóm BGH hoặc Tất cả để thầy nhìn thấy ngay dòng vừa tạo
+  const roleSel = document.getElementById('userFilterRole');
+  if (roleSel && roleSel.value !== 'ALL' && roleSel.value !== 'bgh') {
+    roleSel.value = 'bgh';
+  }
+
+  renderAdminUsersTable();
 }
+
 // Hàm tự động khởi tạo đủ 36 tài khoản GVCN (gvcn_10a1 -> gvcn_12a12)
 function generate36GvcnAccounts() {
-  if (!confirm("Hệ thống sẽ tự động kiểm tra và bổ sung đủ 36 tài khoản GVCN (từ 10A1 đến 12A12) vào nhóm quyền BGH/GVCN.\nBạn có muốn thực hiện ngay không?")) return;
+  if (!confirm("Hệ thống sẽ tự động kiểm tra và bổ sung đủ 36 tài khoản GVCN (từ 10A1 đến 12A12).\nBạn có muốn thực hiện ngay không?")) return;
 
   let addedCount = 0;
   ['10', '11', '12'].forEach(grade => {
     for (let i = 1; i <= 12; i++) {
       const cid = `${grade}A${i}`;
       const uname = `gvcn_${cid.toLowerCase()}`;
-      // Kiểm tra nếu chưa có tài khoản này thì mới thêm
       if (!systemUsers.some(u => u.username.toLowerCase() === uname)) {
         systemUsers.push({
           username: uname,
           pass: `gvcn@${cid.toLowerCase()}`,
           name: `GVCN Chi đoàn ${cid}`,
-          role: 'bgh', // Dùng chung nhóm quyền Xem + Khiếu nại (BGH / GVCN)
-          scope: [cid], // Khóa phạm vi khiếu nại đúng lớp chủ nhiệm
+          role: 'gvcn',
+          scope: [cid],
           sdbClass: null
         });
         addedCount++;
@@ -5775,42 +5807,103 @@ function generate36GvcnAccounts() {
 
   if (addedCount > 0) {
     renderAdminUsersTable();
-    saveUserAccountsToStorage(); // Tự động lưu và đẩy lên Google Drive luôn
-    alert(`✅ Đã tạo mới thành công ${addedCount} tài khoản GVCN!\n- Tên đăng nhập: gvcn_10a1 -> gvcn_12a12\n- Mật khẩu mặc định: gvcn@10a1 -> gvcn@12a12`);
+    saveUserAccountsToStorage();
+    alert(`✅ Đã tạo mới thành công ${addedCount} tài khoản GVCN!`);
   } else {
     alert("ℹ️ Hệ thống đã có đủ 36 tài khoản GVCN rồi!");
   }
 }
-// Hàm xóa tài khoản (Tránh trường hợp lỡ bấm thêm nhầm)
+
 function deleteUserAccount(idx) {
   if(confirm(`Bạn có chắc muốn xóa tài khoản [${systemUsers[idx].username}] khỏi hệ thống?`)) {
     systemUsers.splice(idx, 1);
-    renderAdminUsersTable(); // Cập nhật lại giao diện
+    renderAdminUsersTable();
     alert("Đã xóa! Nhớ bấm 'Lưu Thiết Lập Tài Khoản' để hệ thống ghi nhớ.");
   }
 }
+
 function renderAdminUsersTable() {
   const roleFilter = document.getElementById('userFilterRole') ? document.getElementById('userFilterRole').value : 'ALL';
+  const searchInput = document.getElementById('userSearchInput');
+  const q = searchInput ? searchInput.value.normalize('NFC').trim().toLowerCase() : '';
+
   const tbody = document.getElementById('userAccountsTableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  const list = systemUsers.filter(u => roleFilter === 'ALL' || u.role === roleFilter);
+  // Vẽ dãy nút bấm lọc nhanh ngay phía trên bảng (nếu chưa có)
+  let quickBar = document.getElementById('userQuickFilterBar');
+  if (!quickBar) {
+    quickBar = document.createElement('div');
+    quickBar.id = 'userQuickFilterBar';
+    quickBar.className = 'no-print';
+    quickBar.style.cssText = 'display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.85rem;';
+    tbody.closest('.table-responsive').before(quickBar);
+  }
+
+  const counts = {
+    ALL: systemUsers.length,
+    bgh: systemUsers.filter(u => u.role === 'bgh').length,
+    gvcn: systemUsers.filter(u => u.role === 'gvcn').length,
+    codo: systemUsers.filter(u => u.role === 'codo').length,
+    sdb: systemUsers.filter(u => u.role === 'sdb').length,
+    tnxk: systemUsers.filter(u => u.role === 'tnxk').length,
+    admin: systemUsers.filter(u => u.role === 'admin').length
+  };
+
+  const filterButtons = [
+    { key: 'ALL', label: `📋 Tất cả (${counts.ALL})` },
+    { key: 'bgh', label: `🏫 BGH / BCH (${counts.bgh})` },
+    { key: 'gvcn', label: `👩‍🏫 GVCN (${counts.gvcn})` },
+    { key: 'codo', label: `🚩 Cờ Đỏ (${counts.codo})` },
+    { key: 'sdb', label: `📖 Sổ Đầu Bài (${counts.sdb})` },
+    { key: 'tnxk', label: `⚡ TNXK (${counts.tnxk})` },
+    { key: 'admin', label: `👑 Admin (${counts.admin})` }
+  ];
+
+  quickBar.innerHTML = filterButtons.map(b => `
+    <button type="button" class="btn btn-sm ${roleFilter === b.key ? 'btn-primary' : 'btn-outline'}" onclick="quickFilterUserRole('${b.key}')">
+      ${b.label}
+    </button>
+  `).join('');
+
+  const list = systemUsers.filter(u => {
+    const matchRole = (roleFilter === 'ALL' || u.role === roleFilter);
+    if (!matchRole) return false;
+    if (!q) return true;
+
+    const uName = String(u.username || '').toLowerCase();
+    const fullName = String(u.name || '').normalize('NFC').toLowerCase();
+    const scopeStr = Array.isArray(u.scope) ? u.scope.join(' ').toLowerCase() : '';
+    const sdbStr = String(u.sdbClass || '').toLowerCase();
+
+    return uName.includes(q) || fullName.includes(q) || scopeStr.includes(q) || sdbStr.includes(q);
+  });
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Không tìm thấy tài khoản nào khớp với bộ lọc.</td></tr>`;
+    return;
+  }
 
   list.forEach((u) => {
     const realIdx = systemUsers.indexOf(u);
     
-    // Tự động gộp phạm vi để hiển thị cho Admin dễ nhìn
     let scopeDisplay = u.scope ? u.scope.join(', ') : '';
     if (u.role === 'sdb' && u.sdbClass) scopeDisplay = u.sdbClass;
     if (u.role === 'tnxk' && u.assignedGrade) scopeDisplay = u.assignedGrade;
     if (u.role === 'admin') scopeDisplay = 'Toàn trường';
 
+    // Cho phép sửa trực tiếp ô Tên đăng nhập (Chỉ khóa riêng tài khoản 'admin' gốc để tránh mất quyền)
+    const isRootAdmin = (u.username.toLowerCase() === 'admin');
+    const usernameCellHtml = isRootAdmin
+      ? `<input type="text" id="usr_uname_${realIdx}" value="${u.username}" class="locked-input" style="width:130px; font-weight:bold; padding:0.25rem 0.5rem;" readonly title="Tài khoản Admin gốc cố định">`
+      : `<input type="text" id="usr_uname_${realIdx}" value="${u.username}" style="width:130px; font-weight:bold; color:var(--primary); padding:0.25rem 0.5rem;" title="Có thể sửa tên đăng nhập tại đây">`;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${u.username}</strong></td>
-      <td><input type="text" id="usr_pass_${realIdx}" value="${u.pass}" style="width:100px; font-family:monospace; padding:0.25rem 0.5rem;" title="Mật khẩu"></td>
-      <td><input type="text" id="usr_name_${realIdx}" value="${u.name}" style="width:160px; padding:0.25rem 0.5rem;" title="Tên người dùng"></td>
+      <td>${usernameCellHtml}</td>
+      <td><input type="text" id="usr_pass_${realIdx}" value="${u.pass}" style="width:105px; font-family:monospace; padding:0.25rem 0.5rem;" title="Mật khẩu"></td>
+      <td><input type="text" id="usr_name_${realIdx}" value="${u.name}" style="width:170px; padding:0.25rem 0.5rem;" title="Tên người dùng"></td>
       <td>
         <select id="usr_role_${realIdx}" style="padding:0.35rem 0.5rem; border-radius:6px; font-weight:bold; color:var(--primary); background:var(--surface); border:1px solid var(--border);">
           <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>👑 Admin</option>
@@ -5825,14 +5918,15 @@ function renderAdminUsersTable() {
       <td>
         <input type="text" id="usr_scope_${realIdx}" value="${scopeDisplay}" placeholder="VD: 10A1, 10A2..." style="width:100%; min-width:140px; padding:0.25rem 0.5rem;" title="Nhập danh sách lớp">
       </td>
-      <td style="text-align:center;">
+      <td style="text-align:center; white-space:nowrap;">
         <button class="btn btn-outline btn-sm" onclick="resetUserPass(${realIdx})">Reset</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteUserAccount(${realIdx})" title="Xóa tài khoản">🗑️</button> <!-- Đề xuất thêm nút xóa -->
+        <button class="btn btn-danger btn-sm" onclick="deleteUserAccount(${realIdx})" title="Xóa tài khoản">🗑️</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
 function resetUserPass(idx) {
   const u = systemUsers[idx];
   let defaultP = '123456';
@@ -5840,26 +5934,28 @@ function resetUserPass(idx) {
   if (u.role === 'admin') {
     defaultP = 'admin123';
   } else if (u.username && u.username.includes('_')) {
-    // Luôn lấy theo tên tài khoản gốc: 
-    // VD: codo_10a6 -> codo@10a6 | sdb_10a1 -> sdb@10a1 | tnxk_1 -> tnxk@1
     defaultP = u.username.trim().toLowerCase().replace('_', '@');
   }
 
   document.getElementById(`usr_pass_${idx}`).value = defaultP;
   u.pass = defaultP;
-  u.mustChangePass = true; // Bắt buộc học sinh đổi mật khẩu riêng khi đăng nhập lại
+  u.mustChangePass = true;
 }
 
 function saveUserAccountsToStorage() {
   systemUsers.forEach((u, i) => {
+    const uEl = document.getElementById(`usr_uname_${i}`);
     const pEl = document.getElementById(`usr_pass_${i}`);
     const nEl = document.getElementById(`usr_name_${i}`);
     const rEl = document.getElementById(`usr_role_${i}`);
     const sEl = document.getElementById(`usr_scope_${i}`);
 
+    if (uEl && uEl.value.trim()) {
+      u.username = uEl.value.trim().toLowerCase().replace(/\s+/g, '_');
+    }
     if (pEl) u.pass = pEl.value.trim();
     if (nEl) u.name = nEl.value.trim();
-    
+        
     if (rEl && sEl) {
       const newRole = rEl.value;
       const scopeStr = sEl.value.trim().toUpperCase();
