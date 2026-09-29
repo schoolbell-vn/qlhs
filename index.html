@@ -1285,32 +1285,46 @@
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>👥 DANH SÁCH TÀI KHOẢN CÁ NHÂN & MẬT KHẨU CHUẨN 36 CHI ĐOÀN</h2>
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;" class="no-print">
-          <input type="text" id="userSearchInput" onkeyup="renderAdminUsersTable()" placeholder="🔍 Tìm tài khoản, tên, lớp (VD: 10A1)..." style="width:230px; font-size:0.82rem; padding:0.35rem 0.7rem; border:2px solid var(--primary-light);">
-          <select id="userFilterRole" onchange="renderAdminUsersTable()" style="font-size:0.82rem; padding:0.35rem 0.6rem; font-weight:700; color:var(--primary);">
-            <option value="ALL">📋 Tất cả tài khoản</option>
-            <option value="sdb">📖 Sổ Đầu Bài (36)</option>
-            <option value="codo">🚩 Đội Cờ Đỏ (36)</option>
-            <option value="gvcn">👩‍🏫 Giáo Viên CN (36)</option>
-            <option value="tnxk">⚡ Đội TNXK (12)</option>
-            <option value="bgh">🏫 BGH / BCH Đoàn</option>
-            <option value="admin">👑 Quản Trị (Admin)</option>
-          </select>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminUnlockAllCodoSelection()" style="border-color:var(--warning); color:#b45309; background:#fffbeb;">
-            🔓 Mở khóa cho Cờ đỏ tự chọn
+        <h2>👥 QUẢN LÝ TÀI KHOẢN & MẬT KHẨU TOÀN TRƯỜNG</h2>
+        <div style="display:flex; gap:0.5rem; align-items:center;" class="no-print">
+          <button type="button" class="btn btn-success btn-sm" onclick="addNewAccount()" style="padding:0.45rem 0.9rem; font-size:0.84rem;">
+            ➕ Thêm tài khoản mới
           </button>
-          <div style="display:inline-flex; align-items:center; gap:0.25rem; background:#eff6ff; padding:0.2rem 0.45rem; border-radius:8px; border:1px solid #93c5fd;">
-            <button type="button" class="btn btn-outline btn-sm" onclick="adminStepCodoCircle(-1)" title="Quay lùi lại 1 lớp (nếu lỡ bấm quá tay)" style="padding:0.25rem 0.5rem; font-weight:700; color:var(--danger); border-color:#fca5a5;">
-              ⏪ Lùi 1
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()" style="padding:0.45rem 1rem; font-size:0.84rem;">
+            💾 Lưu Thiết Lập Tài Khoản
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- THANH LỌC NHÓM & TÌM KIẾM TẬP TRUNG (1 HÀNG DUY NHẤT) -->
+        <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.85rem; padding-bottom:0.85rem; border-bottom:1px solid var(--border-light);">
+          <input type="hidden" id="userFilterRole" value="ALL">
+          <div id="userQuickFilterBar" style="display:flex; gap:0.35rem; flex-wrap:wrap;"></div>
+          <div style="position:relative; min-width:250px; flex:1; max-width:320px;">
+            <input type="text" id="userSearchInput" oninput="onUserSearchInput(this.value)" placeholder="🔍 Gõ lớp hoặc tên để tìm nhanh (VD: 12A1)..." style="width:100%; font-size:0.84rem; padding:0.42rem 0.75rem; border:2px solid var(--primary-light); border-radius:8px;">
+          </div>
+        </div>
+
+        <!-- THANH CÔNG CỤ PHÂN CÔNG CHẤM CHÉO (CHỈ HIỆN KHI CHỌN TAB CỜ ĐỎ) -->
+        <div id="codoRotationToolbar" class="no-print" style="display:none; background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.7rem 1rem; margin-bottom:1rem; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+          <div style="font-size:0.84rem; color:#92400e; font-weight:600;">
+            🚩 <strong>Công cụ Phân công Cờ đỏ chấm chéo (36 lớp):</strong>
+            <span id="codoToolbarStatusText" style="font-weight:normal; margin-left:0.3rem;">Xoay vòng tự động hoặc mở khóa cho Cờ đỏ tự chọn lớp.</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="adminUnlockAllCodoSelection()" style="border-color:var(--warning); color:#b45309; background:white; font-weight:700;">
+              🔓 Mở khóa cho Cờ đỏ tự chọn
             </button>
-            <button type="button" class="btn btn-primary btn-sm" onclick="adminStepCodoCircle(1)" title="Tiến lên 1 lớp tiếp theo (12A1->12A2...12A12->11A1...10A12->12A1)" style="padding:0.25rem 0.6rem; font-weight:700;">
-              ⏩ Xoay Tiến +1
+            <button type="button" class="btn btn-outline btn-sm" onclick="adminStepCodoCircle(-1)" style="font-weight:700; color:var(--danger); border-color:#fca5a5; background:white;">
+              ⏪ Lùi 1 lớp
             </button>
-            <select id="codoJumpWeekSelect" onchange="if(this.value) { adminSetCodoByWeek(parseInt(this.value)); this.value=''; }" style="font-size:0.78rem; padding:0.22rem 0.4rem; border-radius:6px; border:1px solid var(--primary-light); font-weight:700; color:var(--primary); background:white; cursor:pointer;">
-              <option value="">🎯 Đặt lại chuẩn theo Tuần...</option>
+            <button type="button" class="btn btn-primary btn-sm" onclick="adminStepCodoCircle(1)" style="font-weight:700;">
+              ⏩ Xoay Tiến +1 lớp
+            </button>
+            <select id="codoJumpWeekSelect" onchange="if(this.value !== '') { adminSetCodoByWeek(parseInt(this.value)); this.value=''; }" style="font-size:0.8rem; padding:0.3rem 0.5rem; border-radius:6px; border:1px solid var(--primary-light); font-weight:700; color:var(--primary); background:white; cursor:pointer;">
+              <option value="">🎯 Đặt chuẩn theo Tuần...</option>
               <option value="0">🔄 Reset về Lớp gốc (Chưa xoay)</option>
-              <option value="1">📌 Chuẩn Tuần 1 (12A1➔12A2, 12A12➔11A1...)</option>
+              <option value="1">📌 Chuẩn Tuần 1 (+1 bước)</option>
               <option value="2">📌 Chuẩn Tuần 2 (+2 bước)</option>
               <option value="3">📌 Chuẩn Tuần 3 (+3 bước)</option>
               <option value="4">📌 Chuẩn Tuần 4 (+4 bước)</option>
@@ -1330,14 +1344,7 @@
               <option value="18">📌 Chuẩn Tuần 18 (+18 bước)</option>
             </select>
           </div>
-          <button class="btn btn-success btn-sm" onclick="addNewAccount()">➕ Thêm tài khoản</button>
-          <button class="btn btn-primary btn-sm" onclick="saveUserAccountsToStorage()">💾 Lưu Thiết Lập Tài Khoản</button>
         </div>
-      </div>
-      <div class="card-body">
-        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
-          Đồng chí Bí thư theo dõi danh sách, đổi mật khẩu và phân công lớp chấm chéo cho 36 Cờ đỏ, 36 cán bộ SĐB và 3 Tổ trưởng TNXK khối.
-        </p>
         <div class="table-responsive">
           <table>
             <thead>
@@ -2640,6 +2647,16 @@ function connectMqtt() {
           if (Array.isArray(payload.data) && payload.data.length > 1) {
             systemUsers = payload.data;
             localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+            // Nếu đang là Cờ đỏ và được Admin mở khóa từ xa -> Mở lại ô chọn lớp ngay lập tức
+            if (loggedUser && loggedUser.role === 'codo') {
+              const myUpdated = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+              if (myUpdated) {
+                loggedUser.scope = myUpdated.scope;
+                loggedUser.codoLocked = myUpdated.codoLocked;
+                sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+                setupCodoForm();
+              }
+            }
             if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
               renderAdminUsersTable();
             }
@@ -4643,7 +4660,7 @@ async function confirmAndLockMyCodoClass() {
 
   lastCloudFetchTime = Date.now();
   localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-  await syncDataToCloud("db_users.json", systemUsers);
+  await updateSingleCodoScopeOnCloud(loggedUser.username, [chosenClass], true);
   publishUpdate('UPDATE_ALL_USERS', systemUsers);
 
   setupUserSessionUI();
@@ -4676,7 +4693,7 @@ async function adminUnlockAllCodoSelection() {
     pNotice.innerHTML = `<strong style="color:#b45309; background:#fffbeb; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #fde68a; display:inline-block;">🔓 ĐÃ MỞ KHÓA: Toàn bộ 36 tài khoản Cờ đỏ hiện đã có thể tự chọn lớp chấm!</strong>`;
   }
 
-  await syncDataToCloud("db_users.json", systemUsers);
+  await updateSingleCodoScopeOnCloud(loggedUser.username, [chosenClass], true);
   publishUpdate('UPDATE_ALL_USERS', systemUsers);
 }
 
@@ -4722,7 +4739,7 @@ async function adminStepCodoCircle(stepDelta) {
     pNotice.innerHTML = `<strong style="color:var(--success); background:#dcfce7; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #86efac; display:inline-block;">${dirText}: ${preview.join(' | ')} (Đã khóa phân công)</strong>`;
   }
 
-  await syncDataToCloud("db_users.json", systemUsers);
+  await updateSingleCodoScopeOnCloud(loggedUser.username, [chosenClass], true);
   publishUpdate('UPDATE_ALL_USERS', systemUsers);
 }
 
@@ -4764,7 +4781,7 @@ async function adminSetCodoByWeek(weekNum) {
     pNotice.innerHTML = `<strong style="color:var(--primary); background:#eff6ff; padding:0.45rem 0.85rem; border-radius:6px; border:1px solid #93c5fd; display:inline-block;">${label}: ${preview.join(' | ')}</strong>`;
   }
 
-  await syncDataToCloud("db_users.json", systemUsers);
+  await updateSingleCodoScopeOnCloud(loggedUser.username, [chosenClass], true);
   publishUpdate('UPDATE_ALL_USERS', systemUsers);
 }
 
@@ -5740,78 +5757,50 @@ function renderStudentSearchTable() {
 // ==================== QUẢN LÝ TÀI KHOẢN & BỘ LỌC NHANH (ADMIN) ====================
 function quickFilterUserRole(role) {
   const sel = document.getElementById('userFilterRole');
-  if (sel) {
-    sel.value = role;
-    renderAdminUsersTable();
+  if (sel) sel.value = role;
+  // Khi bấm chuyển tab nhóm vai trò, xóa từ khóa tìm kiếm cũ để hiển thị trọn vẹn nhóm đó
+  const searchInput = document.getElementById('userSearchInput');
+  if (searchInput) searchInput.value = '';
+  renderAdminUsersTable();
+}
+
+function onUserSearchInput(val) {
+  // Khi gõ tìm kiếm (VD: gõ "12a1"), tự động chuyển về tìm trên "Tất cả" để không bị kẹt ở tab TNXK/BGH
+  if (val && val.trim() !== '') {
+    const sel = document.getElementById('userFilterRole');
+    if (sel && sel.value !== 'ALL') sel.value = 'ALL';
   }
+  renderAdminUsersTable();
 }
 
 function addNewAccount() {
-  const customUsername = prompt("➕ THÊM TÀI KHOẢN MỚI CHO BGH / BCH / GV:\n\nNhập Tên đăng nhập muốn tạo (viết liền không dấu, VD: bgh_hieutruong, bch_nam...):", "bgh_");
-  if (customUsername === null) return;
-
-  const cleanUsername = customUsername.trim().toLowerCase().replace(/\s+/g, '_');
-  if (!cleanUsername) {
-    alert("⚠️ Tên đăng nhập không được để trống!");
-    return;
-  }
-
-  if (systemUsers.some(u => u.username.toLowerCase() === cleanUsername)) {
-    alert(`⛔ Tên đăng nhập [${cleanUsername}] đã tồn tại! Vui lòng đặt tên khác.`);
-    return;
-  }
-
-  const customName = prompt("Nhập Họ tên / Chức vụ hiển thị (VD: Thầy Hiệu Trưởng, Cô Phó Hiệu Trưởng...):", "Ban Giám Hiệu") || "Cán bộ / Giáo viên";
-
-  // Chèn tài khoản mới lên đầu danh sách
+  const newUname = 'bgh_' + Math.floor(100 + Math.random() * 900);
   systemUsers.unshift({
-    username: cleanUsername,
+    username: newUname,
     pass: '123456',
-    name: customName.trim(),
+    name: 'Tên BGH / Cán bộ mới',
     role: 'bgh',
     scope: [],
     sdbClass: null
   });
 
-  // Tự động chuyển bộ lọc về nhóm BGH hoặc Tất cả để thầy nhìn thấy ngay dòng vừa tạo
+  const searchInput = document.getElementById('userSearchInput');
+  if (searchInput) searchInput.value = '';
+
   const roleSel = document.getElementById('userFilterRole');
-  if (roleSel && roleSel.value !== 'ALL' && roleSel.value !== 'bgh') {
-    roleSel.value = 'bgh';
-  }
+  if (roleSel) roleSel.value = 'bgh';
 
   renderAdminUsersTable();
-}
 
-// Hàm tự động khởi tạo đủ 36 tài khoản GVCN (gvcn_10a1 -> gvcn_12a12)
-function generate36GvcnAccounts() {
-  if (!confirm("Hệ thống sẽ tự động kiểm tra và bổ sung đủ 36 tài khoản GVCN (từ 10A1 đến 12A12).\nBạn có muốn thực hiện ngay không?")) return;
-
-  let addedCount = 0;
-  ['10', '11', '12'].forEach(grade => {
-    for (let i = 1; i <= 12; i++) {
-      const cid = `${grade}A${i}`;
-      const uname = `gvcn_${cid.toLowerCase()}`;
-      if (!systemUsers.some(u => u.username.toLowerCase() === uname)) {
-        systemUsers.push({
-          username: uname,
-          pass: `gvcn@${cid.toLowerCase()}`,
-          name: `GVCN Chi đoàn ${cid}`,
-          role: 'gvcn',
-          scope: [cid],
-          sdbClass: null
-        });
-        addedCount++;
-      }
+  setTimeout(() => {
+    const firstUnameInput = document.getElementById('usr_uname_0');
+    if (firstUnameInput) {
+      firstUnameInput.style.backgroundColor = '#dcfce7';
+      firstUnameInput.style.borderColor = '#16a34a';
+      firstUnameInput.focus();
+      firstUnameInput.select();
     }
-  });
-
-  if (addedCount > 0) {
-    renderAdminUsersTable();
-    saveUserAccountsToStorage();
-    alert(`✅ Đã tạo mới thành công ${addedCount} tài khoản GVCN!`);
-  } else {
-    alert("ℹ️ Hệ thống đã có đủ 36 tài khoản GVCN rồi!");
-  }
+  }, 50);
 }
 
 function deleteUserAccount(idx) {
@@ -5831,41 +5820,40 @@ function renderAdminUsersTable() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  // Vẽ dãy nút bấm lọc nhanh ngay phía trên bảng (nếu chưa có)
-  let quickBar = document.getElementById('userQuickFilterBar');
-  if (!quickBar) {
-    quickBar = document.createElement('div');
-    quickBar.id = 'userQuickFilterBar';
-    quickBar.className = 'no-print';
-    quickBar.style.cssText = 'display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.85rem;';
-    tbody.closest('.table-responsive').before(quickBar);
+  // Chỉ hiển thị thanh công cụ Xoay vòng Cờ đỏ khi đang chọn tab "🚩 Cờ Đỏ"
+  const codoToolbar = document.getElementById('codoRotationToolbar');
+  if (codoToolbar) {
+    codoToolbar.style.display = (roleFilter === 'codo') ? 'flex' : 'none';
   }
 
-  const counts = {
-    ALL: systemUsers.length,
-    bgh: systemUsers.filter(u => u.role === 'bgh').length,
-    gvcn: systemUsers.filter(u => u.role === 'gvcn').length,
-    codo: systemUsers.filter(u => u.role === 'codo').length,
-    sdb: systemUsers.filter(u => u.role === 'sdb').length,
-    tnxk: systemUsers.filter(u => u.role === 'tnxk').length,
-    admin: systemUsers.filter(u => u.role === 'admin').length
-  };
+  const quickBar = document.getElementById('userQuickFilterBar');
+  if (quickBar) {
+    const counts = {
+      ALL: systemUsers.length,
+      bgh: systemUsers.filter(u => u.role === 'bgh').length,
+      gvcn: systemUsers.filter(u => u.role === 'gvcn').length,
+      codo: systemUsers.filter(u => u.role === 'codo').length,
+      sdb: systemUsers.filter(u => u.role === 'sdb').length,
+      tnxk: systemUsers.filter(u => u.role === 'tnxk').length,
+      admin: systemUsers.filter(u => u.role === 'admin').length
+    };
 
-  const filterButtons = [
-    { key: 'ALL', label: `📋 Tất cả (${counts.ALL})` },
-    { key: 'bgh', label: `🏫 BGH / BCH (${counts.bgh})` },
-    { key: 'gvcn', label: `👩‍🏫 GVCN (${counts.gvcn})` },
-    { key: 'codo', label: `🚩 Cờ Đỏ (${counts.codo})` },
-    { key: 'sdb', label: `📖 Sổ Đầu Bài (${counts.sdb})` },
-    { key: 'tnxk', label: `⚡ TNXK (${counts.tnxk})` },
-    { key: 'admin', label: `👑 Admin (${counts.admin})` }
-  ];
+    const filterButtons = [
+      { key: 'ALL', label: `📋 Tất cả (${counts.ALL})` },
+      { key: 'bgh', label: `🏫 BGH / BCH (${counts.bgh})` },
+      { key: 'gvcn', label: `👩‍🏫 GVCN (${counts.gvcn})` },
+      { key: 'codo', label: `🚩 Cờ Đỏ (${counts.codo})` },
+      { key: 'sdb', label: `📖 Sổ Đầu Bài (${counts.sdb})` },
+      { key: 'tnxk', label: `⚡ TNXK (${counts.tnxk})` },
+      { key: 'admin', label: `👑 Admin (${counts.admin})` }
+    ];
 
-  quickBar.innerHTML = filterButtons.map(b => `
-    <button type="button" class="btn btn-sm ${roleFilter === b.key ? 'btn-primary' : 'btn-outline'}" onclick="quickFilterUserRole('${b.key}')">
-      ${b.label}
-    </button>
-  `).join('');
+    quickBar.innerHTML = filterButtons.map(b => `
+      <button type="button" class="btn btn-sm ${roleFilter === b.key ? 'btn-primary' : 'btn-outline'}" onclick="quickFilterUserRole('${b.key}')">
+        ${b.label}
+      </button>
+    `).join('');
+  }
 
   const list = systemUsers.filter(u => {
     const matchRole = (roleFilter === 'ALL' || u.role === roleFilter);
@@ -5894,10 +5882,23 @@ function renderAdminUsersTable() {
     if (u.role === 'admin') scopeDisplay = 'Toàn trường';
 
     // Cho phép sửa trực tiếp ô Tên đăng nhập (Chỉ khóa riêng tài khoản 'admin' gốc để tránh mất quyền)
+    // Cho phép sửa trực tiếp ô Tên đăng nhập (Chỉ khóa riêng tài khoản 'admin' gốc để tránh mất quyền)
     const isRootAdmin = (u.username.toLowerCase() === 'admin');
     const usernameCellHtml = isRootAdmin
       ? `<input type="text" id="usr_uname_${realIdx}" value="${u.username}" class="locked-input" style="width:130px; font-weight:bold; padding:0.25rem 0.5rem;" readonly title="Tài khoản Admin gốc cố định">`
       : `<input type="text" id="usr_uname_${realIdx}" value="${u.username}" style="width:130px; font-weight:bold; color:var(--primary); padding:0.25rem 0.5rem;" title="Có thể sửa tên đăng nhập tại đây">`;
+
+    // Kiểm tra trạng thái Đã khóa / Mở khóa của từng tài khoản Cờ đỏ
+    let codoLockBtnHtml = '';
+    if (u.role === 'codo') {
+      const homeClass = u.username.replace('codo_', '').toUpperCase();
+      const currentAssigned = (u.scope && u.scope[0]) ? String(u.scope[0]).toUpperCase() : '';
+      const isLocked = (u.codoLocked === true && currentAssigned !== '' && currentAssigned !== homeClass);
+
+      codoLockBtnHtml = isLocked
+        ? `<button type="button" class="btn btn-sm" onclick="toggleSingleCodoLock(${realIdx})" style="background:#dcfce7; color:#166534; border:1px solid #86efac; white-space:nowrap; font-weight:700; min-width:98px;" title="Cờ đỏ này đã chốt lớp chấm. Bấm vào đây để MỞ KHÓA cho chọn lại">🔒 Đã khóa</button>`
+        : `<button type="button" class="btn btn-sm" onclick="toggleSingleCodoLock(${realIdx})" style="background:#fffbeb; color:#b45309; border:1px solid #fcd34d; white-space:nowrap; font-weight:700; min-width:98px;" title="Đang mở cho Cờ đỏ tự chọn lớp. Bấm vào đây để KHÓA cứng lớp bên cạnh">🔓 Mở chọn</button>`;
+    }
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -5910,13 +5911,16 @@ function renderAdminUsersTable() {
           <option value="sdb" ${u.role === 'sdb' ? 'selected' : ''}>📖 Sổ Đầu Bài</option>
           <option value="codo" ${u.role === 'codo' ? 'selected' : ''}>🚩 Cờ Đỏ</option>
           <option value="tnxk" ${u.role === 'tnxk' ? 'selected' : ''}>⚡ Tổ TNXK</option>
-          <option value="gvcn" ${u.role === 'gvcn' ? 'selected' : ''}>👩‍🏫 GVCN</option>
+          <option value="gvcn" ${u.role === 'gvcn' ? 'selected' : ''}>👩‍‍🏫 GVCN</option>
           <option value="bgh" ${u.role === 'bgh' ? 'selected' : ''}>🏫 BGH / BCH</option>
           <option value="guest" ${u.role === 'guest' ? 'selected' : ''}>🔒 Khóa (Khách)</option>
         </select>
       </td>
       <td>
-        <input type="text" id="usr_scope_${realIdx}" value="${scopeDisplay}" placeholder="VD: 10A1, 10A2..." style="width:100%; min-width:140px; padding:0.25rem 0.5rem;" title="Nhập danh sách lớp">
+        <div style="display:flex; align-items:center; gap:0.4rem;">
+          <input type="text" id="usr_scope_${realIdx}" value="${scopeDisplay}" placeholder="VD: 10A5..." style="flex:1; min-width:85px; font-weight:700; color:var(--primary); padding:0.25rem 0.5rem;" title="Nhập danh sách lớp">
+          ${codoLockBtnHtml}
+        </div>
       </td>
       <td style="text-align:center; white-space:nowrap;">
         <button class="btn btn-outline btn-sm" onclick="resetUserPass(${realIdx})">Reset</button>
@@ -5925,6 +5929,58 @@ function renderAdminUsersTable() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+// Hàm bật/tắt Khóa hoặc Mở khóa tức thì cho từng Cờ đỏ riêng lẻ (Khi Cờ đỏ bấm nhầm nhờ Admin mở)
+async function toggleSingleCodoLock(idx) {
+  const u = systemUsers[idx];
+  if (!u || u.role !== 'codo') return;
+
+  // Cập nhật luôn tên lớp nếu Admin vừa gõ sửa trong ô bên cạnh
+  const sEl = document.getElementById(`usr_scope_${idx}`);
+  if (sEl && sEl.value.trim()) {
+    u.scope = sEl.value.trim().toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  const homeClass = u.username.replace('codo_', '').toUpperCase();
+  const currentAssigned = (u.scope && u.scope[0]) ? String(u.scope[0]).toUpperCase() : '';
+  const currentlyLocked = (u.codoLocked === true && currentAssigned !== '' && currentAssigned !== homeClass);
+
+  if (!currentlyLocked && (currentAssigned === '' || currentAssigned === homeClass)) {
+    alert(`⚠️ Lớp phân công của [${u.username}] hiện đang trùng với lớp gốc (${homeClass}).\nVui lòng gõ tên lớp chấm chéo (VD: 10A5) vào ô bên cạnh trước khi bấm Khóa!`);
+    return;
+  }
+
+  // Đảo trạng thái Khóa <-> Mở
+  u.codoLocked = !currentlyLocked;
+
+  lastCloudFetchTime = Date.now() + 30000;
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  renderAdminUsersTable();
+
+  // Lưu lẻ trạng thái lên Google Drive và bắn MQTT cho máy Cờ đỏ đó mở khóa ngay lập tức
+  updateSingleCodoScopeOnCloud(u.username, u.scope, u.codoLocked);
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
+}
+
+// Hàm gửi lẻ phân công của 1 Cờ đỏ lên Cloud (Tránh việc 2 Cờ đỏ cùng chốt lớp 1 lúc bị đè nhau)
+async function updateSingleCodoScopeOnCloud(username, scopeArr, codoLockedState) {
+  localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+  try {
+    await fetch(MASTER_APP_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: "update_single_codo_scope",
+        username: username,
+        scope: scopeArr,
+        codoLocked: codoLockedState
+      })
+    });
+  } catch (e) {
+    console.error("Lỗi lưu phân công Cờ đỏ:", e);
+  }
 }
 
 function resetUserPass(idx) {
@@ -6866,11 +6922,22 @@ function finalizeWeek() {
     }
   });
   updateSdbLocalAndCloud();
+
+  // TỰ ĐỘNG MỞ KHÓA TẤT CẢ 36 CỜ ĐỎ ĐỂ TUẦN MỚI CHỌN LỚP CHẤM CHÉO KHÁC
+  systemUsers.forEach(u => {
+    if (u.role === 'codo') {
+      u.codoLocked = false;
+    }
+  });
+  updateUsersLocalAndCloud();
+  publishUpdate('UPDATE_ALL_USERS', systemUsers);
+
   publishUpdate('SYNC_HISTORY_STATE', {
     history: weeklyHistory,
     violations: violations,
     sdb: sdbFullData
   });
+
   currentHistoryMode = 'WEEK';
   selectedHistoryIndex = 0;
   populateWeekFinalizeDropdown();
@@ -6878,7 +6945,8 @@ function finalizeWeek() {
   renderStudentSearchTable();
   renderAlerts();
   renderHistoryTable();
-  alert(`✅ Đã chốt thành công [${weekTitle}]!\nCác biên bản thuộc tuần mới (sau ngày ${formatDateVN(toDate)}) vẫn được giữ nguyên trên Bảng xếp hạng.`);
+  if (typeof renderAdminUsersTable === 'function') renderAdminUsersTable();
+  alert(`✅ Đã chốt thành công [${weekTitle}]!\n🔓 Hệ thống đã tự động MỞ KHÓA toàn bộ 36 tài khoản Cờ đỏ để các em chọn lớp chấm mới cho tuần tiếp theo!`);
 }
 // HÀM DÙNG CHUNG ĐỂ TỔNG HỢP N TUẦN THÀNH BẢNG THÁNG HOẶC BẢNG NĂM HỌC
 function aggregateWeeksData(targetWeeks) {
@@ -7448,7 +7516,7 @@ async function importFullSystemBackup(event) {
       }
 
       // 2. Đẩy toàn bộ ngược lên Google Drive để phục hồi các file đã mất
-      await syncDataToCloud("db_users.json", systemUsers);
+      await updateSingleCodoScopeOnCloud(loggedUser.username, [chosenClass], true);
       await syncDataToCloud("db_rules.json", RULES);
       await syncDataToCloud("db_tabs.json", TABS_CONFIG);
       await syncDataToCloud("db_violations.json", violations);
