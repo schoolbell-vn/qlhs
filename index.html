@@ -3146,24 +3146,37 @@ function isDateInSelectedTerm(dateStr, term) {
 }
 
 // Hàm nhận diện tên học sinh thông minh (Bắt chuẩn tên ngay cả khi TNXK/Cờ đỏ ghi kèm BKS xe hoặc ghi chú)
-function matchStudentInClass(classId, rawStudentStr) {
-  if (!rawStudentStr) return null;
-  // Cắt bỏ phần trong ngoặc đơn (...) hoặc sau dấu gạch ngang " - " (VD: "Hoàng Văn Tuấn (BKS 35-MĐ1...)" -> "Hoàng Văn Tuấn")
-  const cleanInput = rawStudentStr
-    .replace(/\([^)]*\)/g, '')
-    .split(' - ')[0]
+// Hàm chuẩn hóa chuỗi Tiếng Việt (Khử lỗi lệch bảng mã Unicode Tổ hợp / Dựng sẵn)
+function normalizeVnStr(str) {
+  return String(str || '')
+    .normalize('NFC')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
 
-  const classStudents = STUDENTS_DB.filter(s => s.classId === classId);
-  // 1. Khớp chính xác tên đã làm sạch
-  let matched = classStudents.find(s => s.name.replace(/\s+/g, ' ').trim().toLowerCase() === cleanInput);
-  // 2. Nếu vẫn chưa khớp (do ghi thêm chữ phía sau mà không mở ngoặc), kiểm tra xem chuỗi nhập có bắt đầu bằng Họ tên chuẩn của HS trong lớp không
+// Hàm nhận diện tên học sinh thông minh (Bắt chuẩn tên ngay cả khi TNXK/Cờ đỏ ghi kèm BKS xe hoặc ghi chú)
+function matchStudentInClass(classId, rawStudentStr) {
+  if (!rawStudentStr || !classId) return null;
+  const targetClass = String(classId).trim().toUpperCase();
+
+  // Cắt bỏ phần trong ngoặc đơn (...) hoặc sau dấu gạch ngang " - "
+  const cleanInput = normalizeVnStr(
+    rawStudentStr.replace(/\([^)]*\)/g, '').split(' - ')[0]
+  );
+
+  const classStudents = STUDENTS_DB.filter(
+    s => String(s.classId).trim().toUpperCase() === targetClass
+  );
+
+  // 1. Khớp chính xác 100% tên đã làm sạch
+  let matched = classStudents.find(s => normalizeVnStr(s.name) === cleanInput);
+
+  // 2. Nếu chưa khớp (do ghi kèm biển số xe hoặc ghi chú không đóng ngoặc), kiểm tra chuỗi chứa họ tên chuẩn
   if (!matched) {
     matched = classStudents.find(s => {
-      const stdName = s.name.replace(/\s+/g, ' ').trim().toLowerCase();
-      return stdName.length > 3 && cleanInput.startsWith(stdName);
+      const stdName = normalizeVnStr(s.name);
+      return stdName.length > 3 && (cleanInput.startsWith(stdName) || cleanInput.includes(stdName));
     });
   }
   return matched || null;
@@ -3215,6 +3228,7 @@ function computeSingleTermStudentRecords(term) {
   const totalWeeks = (term === 'HK1') ? (cfg.weeksHk1 || 18) : (cfg.weeksHk2 || 17);
   const recordMap = {};
 
+  // Khởi tạo danh sách cố định đúng bằng số lượng học sinh trong STUDENTS_DB (1553 HS)
   STUDENTS_DB.forEach(s => {
     recordMap[s.id] = {
       stt: s.stt, classId: s.classId, id: s.id, name: s.name, dob: s.dob, gender: s.gender,
@@ -3224,20 +3238,12 @@ function computeSingleTermStudentRecords(term) {
     };
   });
 
-  // 1. Quét biên bản Cờ đỏ, TNXK, BCH Đoàn (Sử dụng matchStudentInClass để không bị lọt lỗi khi kèm BKS xe)
+  // 1. Quét biên bản Cờ đỏ, TNXK, BCH Đoàn (Chỉ tính vào học sinh có thật trong danh sách gốc)
   violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && isDateInSelectedTerm(v.date, term)).forEach(v => {
     const matched = matchStudentInClass(v.classId, v.student);
-    const key = matched ? matched.id : `${v.classId}_${v.student.trim().toLowerCase()}`;
-    
-    if (!recordMap[key]) {
-      recordMap[key] = {
-        stt: 999, classId: v.classId, id: 'Chưa khớp mã', name: v.student, dob: '', gender: '',
-        excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
-        maxSinglePenalty: 0, violatedCodes: [],
-        totalPenalties: 0, totalBonuses: 0, details: []
-      };
-    }
-    const rec = recordMap[key];
+    if (!matched || !recordMap[matched.id]) return; // Bỏ qua tên ảo, tuyệt đối không đẻ thêm học sinh mới
+
+    const rec = recordMap[matched.id];
 
     if (v.points < 0) {
       const absPt = Math.abs(v.points);
@@ -3256,22 +3262,14 @@ function computeSingleTermStudentRecords(term) {
     rec.details.push(`[${v.date}] [${v.code}] ${v.name} (${v.points > 0 ? '+' : ''}${v.points}đ)`);
   });
 
-  // 2. Quét dữ liệu nghỉ học SĐB
+  // 2. Quét dữ liệu nghỉ học SĐB (Chỉ tính vào học sinh có thật trong danh sách gốc)
   Object.keys(sdbFullData).forEach(cid => {
     const s = sdbFullData[cid];
     (s.absences || []).filter(a => isDateInSelectedTerm(a.date, term)).forEach(a => {
       const matched = matchStudentInClass(cid, a.student);
-      const key = matched ? matched.id : `${cid}_${a.student.trim().toLowerCase()}`;
-      
-      if (!recordMap[key]) {
-        recordMap[key] = {
-          stt: 999, classId: cid, id: 'SĐB', name: a.student, dob: '', gender: '',
-          excusedAbsences: 0, unexcusedAbsences: 0, disciplineViolations: 0, trafficViolations: 0,
-          maxSinglePenalty: 0, violatedCodes: [],
-          totalPenalties: 0, totalBonuses: 0, details: []
-        };
-      }
-      const rec = recordMap[key];
+      if (!matched || !recordMap[matched.id]) return; // Không tự đẻ thêm học sinh ngoài danh sách
+
+      const rec = recordMap[matched.id];
 
       if (a.type === 'A01') rec.excusedAbsences += 1;
       else rec.unexcusedAbsences += 1;
@@ -3330,7 +3328,6 @@ function computeSingleTermStudentRecords(term) {
 
   return resultMap;
 }
-
 function computeHk1StudentRecords() {
   const cfg = CONDUCT_CONFIG;
   const term = document.getElementById('hk1FilterTerm') ? document.getElementById('hk1FilterTerm').value : 'HK1';
