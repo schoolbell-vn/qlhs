@@ -5488,16 +5488,22 @@ function renderReviewTable() {
       </td>
       <td style="font-size:0.8rem;">${v.recorder}</td>
       <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status || 'Chờ duyệt'}</span></td>
-      <td style="text-align:center;" class="no-print">
-       ${(loggedUser && loggedUser.role === 'admin') ? `
-          <button class="btn btn-success btn-sm" onclick="approveViolation(${v.id})" title="Duyệt">Duyệt</button>
-          <button class="btn btn-outline btn-sm" style="color:var(--primary-light); border-color:#93c5fd; font-weight:700;" onclick="editViolationRecord(${v.id})" title="Sửa tên học sinh hoặc lớp">✏️ Sửa</button>
-          <button class="btn btn-outline btn-sm" onclick="disputeViolation(${v.id})" title="Khiếu nại">Khiếu nại</button>
-          <button class="btn btn-danger btn-sm" onclick="cancelViolation(${v.id})" title="Hủy">Hủy</button>
-          <button class="btn btn-danger btn-sm" style="background:#dc2626; color:white;" onclick="deleteViolationPermanently(${v.id})" title="Xóa vĩnh viễn khỏi hệ thống">🗑️ Xóa</button>
+      <td style="text-align:center; white-space:nowrap;" class="no-print">
+        ${(loggedUser && loggedUser.role === 'admin') ? `
+          <div style="display:inline-flex; align-items:center; gap:0.3rem; background:#f8fafc; padding:0.25rem 0.4rem; border-radius:8px; border:1px solid var(--border-light);">
+            ${v.status !== 'Đã duyệt' ? `
+              <button class="btn btn-success btn-sm" style="padding:0.28rem 0.6rem; font-weight:700;" onclick="approveViolation(${v.id})" title="Phê duyệt biên bản này">✓ Duyệt</button>
+            ` : ''}
+            <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.5rem; color:var(--primary-light); border-color:#bfdbfe; font-weight:600;" onclick="editViolationRecord(${v.id})" title="Sửa lại Họ tên học sinh hoặc Lớp">✏️ Sửa</button>
+            <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.45rem; color:#b45309; border-color:#fde68a; background:#fffbeb;" onclick="disputeViolation(${v.id})" title="Ghi nhận Khiếu nại">💬</button>
+            ${v.status !== 'Đã hủy' ? `
+              <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.5rem; color:var(--danger); border-color:#fecaca; background:#fef2f2;" onclick="cancelViolation(${v.id})" title="Hủy bỏ hiệu lực biên bản (Không trừ điểm)">🚫 Hủy</button>
+            ` : ''}
+            <button class="btn btn-sm" style="padding:0.28rem 0.45rem; background:#dc2626; color:white;" onclick="deleteViolationPermanently(${v.id})" title="Xóa vĩnh viễn biên bản khỏi hệ thống">🗑️</button>
+          </div>
         ` : `
           ${(v.status !== 'Khiếu nại' && v.status !== 'Đã hủy') ? 
-            `<button class="btn btn-warning btn-sm" style="background:#f59e0b; color:white; border:none; font-weight:bold;" onclick="studentDisputeViolation(${v.id})">🙋 Khiếu nại</button>` 
+            `<button class="btn btn-warning btn-sm" style="background:#f59e0b; color:white; border:none; font-weight:bold; white-space:nowrap;" onclick="studentDisputeViolation(${v.id})">🙋 Khiếu nại</button>` 
             : `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:bold;">${v.status || 'Chờ duyệt'}</span>`
           }
         `}
