@@ -2881,37 +2881,31 @@ function isDateInSelectedTerm(dateStr, term) {
 }
 
 // ==================== CẤU HÌNH ĐỘNG & TỔNG HỢP RÈN LUYỆN CÁ NHÂN (HK1, HK2, CẢ NĂM) ====================
-// ==================== BỘ QUY TẮC ĐỘNG XẾP LOẠI RÈN LUYỆN CÁ NHÂN (TÙY BIẾN ĐA TRƯỜNG) ====================
 const DEFAULT_CONDUCT_CONFIG = {
-  calcMethod: 'AVG_WEEK', // 'AVG_WEEK' (Trung bình tuần) hoặc 'TOTAL_TERM' (Trừ thẳng quỹ điểm kỳ)
+  calcMethod: 'TOTAL_TERM', // Trừ trực tiếp trên Quỹ điểm 100 của Học kỳ (Rõ ràng, không bị ảo điểm)
   weeklyBaseScore: 100,
   weeksHk1: 18,
   weeksHk2: 17,
   weeksYear: 35,
   hk1EndDate: '2027-01-15',
-  minAvgGood: 90,
-  minAvgFair: 75,
-  minAvgPass: 50,
-  // Danh sách các tiêu chí khống chế mặc định (Admin có thể Thêm / Sửa / Xóa tùy ý trên Web)
+  minAvgGood: 80, // Từ 80 - 100đ (Trừ ròng <= 20đ): Tốt
+  minAvgFair: 65, // Từ 65 - <80đ (Trừ ròng <= 35đ): Khá
+  minAvgPass: 50, // Từ 50 - <65đ (Trừ ròng <= 50đ): Đạt (<50đ là Chưa đạt)
+  // Danh sách các tiêu chí khống chế đồng bộ 100% với thang điểm 80 - 65 - 50
   rules: [
     { code: 'KC01', name: 'Nghỉ học không phép từ 1 buổi trở lên', metric: 'unexcused_absences', threshold: '1', scope: 'ALL', maxRank: 'Khá' },
     { code: 'KC02', name: 'Nghỉ không phép từ 2 buổi trở lên (Trong 1 Học kỳ)', metric: 'unexcused_absences', threshold: '2', scope: 'TERM', maxRank: 'Đạt' },
     { code: 'KC03', name: 'Nghỉ không phép từ 3 buổi trở lên (Trong Cả năm)', metric: 'unexcused_absences', threshold: '3', scope: 'YEAR', maxRank: 'Đạt' },
     { code: 'KC04', name: 'Nghỉ không phép từ 4 buổi trở lên (Trong 1 Học kỳ)', metric: 'unexcused_absences', threshold: '4', scope: 'TERM', maxRank: 'Chưa đạt' },
     { code: 'KC05', name: 'Nghỉ không phép từ 7 buổi trở lên (Trong Cả năm)', metric: 'unexcused_absences', threshold: '7', scope: 'YEAR', maxRank: 'Chưa đạt' },
-    { code: 'KC06', name: 'Vi phạm lỗi nặng từ -50đ trở lên (ATGT, Thuốc lá/Vape...)', metric: 'single_point', threshold: '50', scope: 'ALL', maxRank: 'Khá' },
-    { code: 'KC07', name: 'Vi phạm lỗi đặc biệt nghiêm trọng (-100đ: Đánh nhau, Phá hoại...)', metric: 'single_point', threshold: '100', scope: 'ALL', maxRank: 'Chưa đạt' },
-    { code: 'KC08', name: 'Tổng điểm trừ ròng vượt quá 30đ (Học kỳ)', metric: 'net_penalty', threshold: '30', scope: 'TERM', maxRank: 'Khá' },
-    { code: 'KC09', name: 'Tổng điểm trừ ròng vượt quá 50đ (Cả năm)', metric: 'net_penalty', threshold: '50', scope: 'YEAR', maxRank: 'Khá' },
-    { code: 'KC10', name: 'Tổng điểm trừ ròng vượt quá 60đ (Học kỳ)', metric: 'net_penalty', threshold: '60', scope: 'TERM', maxRank: 'Đạt' },
-    { code: 'KC11', name: 'Tổng điểm trừ ròng vượt quá 100đ (Cả năm)', metric: 'net_penalty', threshold: '100', scope: 'YEAR', maxRank: 'Đạt' },
-    { code: 'KC12', name: 'Tổng điểm trừ ròng vượt quá 100đ (Học kỳ)', metric: 'net_penalty', threshold: '100', scope: 'TERM', maxRank: 'Chưa đạt' },
-    { code: 'KC13', name: 'Tổng điểm trừ ròng vượt quá 180đ (Cả năm)', metric: 'net_penalty', threshold: '180', scope: 'YEAR', maxRank: 'Chưa đạt' }
+    { code: 'KC06', name: 'Mắc lỗi nặng từ -30đ trở lên (Bỏ tiết, Vô lễ, ATGT, Thuốc lá...)', metric: 'single_point', threshold: '30', scope: 'ALL', maxRank: 'Khá' },
+    { code: 'KC07', name: 'Mắc lỗi rất nặng từ -50đ trở lên (Không MBH, Hút thuốc/Vape...)', metric: 'single_point', threshold: '50', scope: 'ALL', maxRank: 'Đạt' },
+    { code: 'KC08', name: 'Vi phạm đặc biệt nghiêm trọng (-100đ: Đánh nhau, Phá hoại, Công an báo)', metric: 'single_point', threshold: '100', scope: 'ALL', maxRank: 'Chưa đạt' }
   ]
 };
 
 let CONDUCT_CONFIG = JSON.parse(localStorage.getItem('yka_conduct_config_v1')) || JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG));
-if (!CONDUCT_CONFIG.rules) CONDUCT_CONFIG.rules = JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG.rules));
+if (!CONDUCT_CONFIG.rules) CONDUCT_CONFIG.rules = JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG.rules));if (!CONDUCT_CONFIG.rules) CONDUCT_CONFIG.rules = JSON.parse(JSON.stringify(DEFAULT_CONDUCT_CONFIG.rules));
 
 let editingConductRuleCode = null;
 
@@ -4334,61 +4328,117 @@ function getSelectedBoardWeekInfo() {
   return { weekNum: 1, fromDate: '', toDate: '', fmtFrom: '', fmtTo: '' };
 }
 
+// Hàm chuẩn tính điểm Tập thể Lớp (Dùng chung cho cả Bảng Xếp Hạng và Chốt Tuần)
+function computeClassScoreItem(c, fromDate, toDate, sdbSourceObj) {
+  const approvedViolations = violations.filter(v => {
+    if (v.classId !== c.id || v.status !== 'Đã duyệt') return false;
+    if (fromDate && toDate) {
+      return v.date >= fromDate && v.date <= toDate;
+    }
+    return !v.isArchived;
+  });
+
+  let codoPenalties = 0, personalBonus = 0, classBonus = 0;
+  let maxSingleViolation = 0;
+
+  approvedViolations.forEach(v => {
+    if (v.isClassBonus) {
+      classBonus += v.points;
+    } else {
+      if (v.points < 0) {
+        const absP = Math.abs(v.points);
+        codoPenalties += absP;
+        if (absP > maxSingleViolation) maxSingleViolation = absP;
+      } else {
+        personalBonus += v.points;
+      }
+    }
+  });
+
+  const sdb = (sdbSourceObj && sdbSourceObj[c.id]) || sdbFullData[c.id] || {
+    total: 30, good: 30, fair: 0, medium: 0, weak: 0, poor: 0, absences: [], goodScores: 0, poorScores: 0
+  };
+  const sdbHourPenalty = (sdb.fair * 1) + (sdb.medium * 3) + (sdb.weak * 5) + (sdb.poor * 7);
+  const sdbPoorScorePenalty = (sdb.poorScores || 0) * 2;
+
+  let sdbAbsencePenalty = 0;
+  let unexcusedCount = 0;
+  const fullSdbClass = sdbFullData[c.id] || sdb;
+  (fullSdbClass.absences || []).filter(a => {
+    if (fromDate && toDate) {
+      return a.date >= fromDate && a.date <= toDate;
+    }
+    return !a.isArchived;
+  }).forEach(a => {
+    sdbAbsencePenalty += Math.abs(a.point);
+    if (a.type === 'A02') unexcusedCount++;
+  });
+
+  const sdbGoodScoreBonus = (sdb.goodScores || 0) * 1;
+  const sdbHourBonus = (sdb.good === sdb.total && sdb.total > 0) ? 20 : 0;
+
+  const totalDeductions = parseFloat((codoPenalties + sdbHourPenalty + sdbPoorScorePenalty + sdbAbsencePenalty).toFixed(1));
+  const totalAdditions = parseFloat((personalBonus + classBonus + sdbGoodScoreBonus + sdbHourBonus).toFixed(1));
+  const remainingPenalty = parseFloat((totalDeductions - totalAdditions).toFixed(1));
+
+  // Xét xếp loại Tập thể Tuần (Có điều kiện khống chế lỗi nặng để tránh lạm phát điểm cộng bù)
+  const hasBadLesson = (sdb.weak > 0 || sdb.poor > 0);
+  const hasSevereViolation = (maxSingleViolation >= 30 || unexcusedCount > 0);
+  const hasCriticalViolation = (maxSingleViolation >= 100 || sdb.poor > 0);
+
+  let rankLabel = 'Xuất sắc', bClass = 'badge-success';
+  if (remainingPenalty > 80 || hasCriticalViolation) {
+    rankLabel = 'Chưa đạt'; bClass = 'badge-danger';
+  } else if (remainingPenalty > 50) {
+    rankLabel = 'Đạt'; bClass = 'badge-gray';
+  } else if (remainingPenalty > 30) {
+    rankLabel = 'Khá'; bClass = 'badge-warning';
+  } else if (remainingPenalty > 0 || hasSevereViolation || hasBadLesson) {
+    // Nếu điểm trừ sau bù <= 0 nhưng lớp có lỗi nặng (>=30đ) hoặc nghỉ KP / tiết Yếu thì tối đa chỉ đạt TỐT
+    rankLabel = 'Tốt'; bClass = 'badge-info';
+  } else {
+    rankLabel = 'Xuất sắc'; bClass = 'badge-success';
+  }
+
+  return {
+    id: c.id, grade: c.grade, size: c.size,
+    codoPenalties: codoPenalties.toFixed(1),
+    academicPenalties: (sdbHourPenalty + sdbPoorScorePenalty).toFixed(1),
+    sdbAbsencePenalty: sdbAbsencePenalty.toFixed(1),
+    totalDeductions, totalAdditions, remainingPenalty, rankLabel, bClass
+  };
+}
+
+function sortClassScoreList(list) {
+  const rankWeight = { 'Xuất sắc': 5, 'Tốt': 4, 'Khá': 3, 'Đạt': 2, 'Chưa đạt': 1 };
+  return list.sort((a, b) => {
+    // 1. Ưu tiên xếp theo bậc Danh hiệu trước (Xuất sắc -> Tốt -> Khá -> Đạt -> Chưa đạt)
+    if (rankWeight[b.rankLabel] !== rankWeight[a.rankLabel]) {
+      return rankWeight[b.rankLabel] - rankWeight[a.rankLabel];
+    }
+    // 2. Nếu cùng đạt Xuất sắc (<= 0đ), lớp nào ÍT VI PHẠM GỐC HƠN (totalDeductions nhỏ hơn) sẽ xếp trên!
+    if (a.remainingPenalty <= 0 && b.remainingPenalty <= 0 && a.totalDeductions !== b.totalDeductions) {
+      return a.totalDeductions - b.totalDeductions;
+    }
+    // 3. Cuối cùng mới xét đến hiệu số điểm trừ còn lại
+    return a.remainingPenalty - b.remainingPenalty;
+  });
+}
+
 function calculateClassScores() {
   const gradeFilter = document.getElementById('boardFilterGrade') ? document.getElementById('boardFilterGrade').value : 'ALL';
   const wInfo = getSelectedBoardWeekInfo();
 
-  // Nếu tuần đang chọn đã từng được chốt trong Lịch sử và không còn biên bản chờ bên ngoài, hoặc tính trực tiếp theo khoảng ngày của tuần đó
-  return CLASSES.map(c => {
-    const approvedViolations = violations.filter(v => {
-      if (v.classId !== c.id || v.status !== 'Đã duyệt') return false;
-      if (wInfo.fromDate && wInfo.toDate) {
-        return v.date >= wInfo.fromDate && v.date <= wInfo.toDate;
-      }
-      return !v.isArchived;
-    });
+  // Nếu Tuần đang chọn đã từng được chốt trong Lịch sử -> Lấy đúng bản lưu SĐB của tuần đó để không bị mất điểm SĐB
+  const archivedWeek = weeklyHistory.find(h => 
+    (!h.type || h.type === 'WEEK') && h.weekNumber === wInfo.weekNum
+  );
+  const sdbSource = (archivedWeek && archivedWeek.sdbSnapshot) ? archivedWeek.sdbSnapshot : sdbFullData;
 
-    let codoPenalties = 0, personalBonus = 0, classBonus = 0;
-    approvedViolations.forEach(v => {
-      if (v.isClassBonus) classBonus += v.points;
-      else {
-        if (v.points < 0) codoPenalties += Math.abs(v.points);
-        else personalBonus += v.points;
-      }
-    });
+  const list = CLASSES.map(c => computeClassScoreItem(c, wInfo.fromDate, wInfo.toDate, sdbSource))
+                      .filter(c => gradeFilter === 'ALL' || c.grade === gradeFilter);
 
-    const sdb = sdbFullData[c.id] || { total: 30, good: 30, fair: 0, medium: 0, weak: 0, poor: 0, absences: [], goodScores: 0, poorScores: 0 };
-    const sdbHourPenalty = (sdb.fair * 1) + (sdb.medium * 3) + (sdb.weak * 5) + (sdb.poor * 7);
-    const sdbPoorScorePenalty = (sdb.poorScores || 0) * 2;
-
-    let sdbAbsencePenalty = 0;
-    (sdb.absences || []).filter(a => {
-      if (wInfo.fromDate && wInfo.toDate) {
-        return a.date >= wInfo.fromDate && a.date <= wInfo.toDate;
-      }
-      return !a.isArchived;
-    }).forEach(a => sdbAbsencePenalty += Math.abs(a.point));
-
-    const sdbGoodScoreBonus = (sdb.goodScores || 0) * 1;
-    const sdbHourBonus = (sdb.good === sdb.total && sdb.total > 0) ? 20 : 0;
-
-    const totalDeductions = parseFloat((codoPenalties + sdbHourPenalty + sdbPoorScorePenalty + sdbAbsencePenalty).toFixed(1));
-    const totalAdditions = parseFloat((personalBonus + classBonus + sdbGoodScoreBonus + sdbHourBonus).toFixed(1));
-    const remainingPenalty = parseFloat((totalDeductions - totalAdditions).toFixed(1));
-
-    let rankLabel = 'Xuất sắc', bClass = 'badge-success';
-    if (remainingPenalty <= 0) { rankLabel = 'Xuất sắc'; bClass = 'badge-success'; }
-    else if (remainingPenalty < 50) { rankLabel = 'Tốt'; bClass = 'badge-info'; }
-    else if (remainingPenalty <= 70) { rankLabel = 'Khá'; bClass = 'badge-warning'; }
-    else if (remainingPenalty <= 100) { rankLabel = 'Đạt'; bClass = 'badge-gray'; }
-    else { rankLabel = 'Chưa đạt'; bClass = 'badge-danger'; }
-
-    return {
-      id: c.id, grade: c.grade, size: c.size,
-      codoPenalties: codoPenalties.toFixed(1), academicPenalties: (sdbHourPenalty + sdbPoorScorePenalty).toFixed(1),
-      sdbAbsencePenalty: sdbAbsencePenalty.toFixed(1), totalDeductions, totalAdditions, remainingPenalty, rankLabel, bClass
-    };
-  }).filter(c => gradeFilter === 'ALL' || c.grade === gradeFilter).sort((a, b) => a.remainingPenalty - b.remainingPenalty);
+  return sortClassScoreList(list);
 }
 
 function renderLeaderboard() {
@@ -6286,55 +6336,7 @@ function onSelectWeekToFinalizeChange() {
 }
 
 function calculateClassScoresForWeekRange(fromDate, toDate) {
-  return CLASSES.map(c => {
-    const weekViolations = violations.filter(v => 
-      v.classId === c.id && 
-      v.status === 'Đã duyệt' && 
-      !v.isArchived &&
-      (!fromDate || v.date >= fromDate) &&
-      (!toDate || v.date <= toDate)
-    );
-
-    let codoPenalties = 0, personalBonus = 0, classBonus = 0;
-    weekViolations.forEach(v => {
-      if (v.isClassBonus) classBonus += v.points;
-      else {
-        if (v.points < 0) codoPenalties += Math.abs(v.points);
-        else personalBonus += v.points;
-      }
-    });
-
-    const sdb = sdbFullData[c.id] || { total: 30, good: 30, fair: 0, medium: 0, weak: 0, poor: 0, absences: [], goodScores: 0, poorScores: 0 };
-    const sdbHourPenalty = (sdb.fair * 1) + (sdb.medium * 3) + (sdb.weak * 5) + (sdb.poor * 7);
-    const sdbPoorScorePenalty = (sdb.poorScores || 0) * 2;
-
-    let sdbAbsencePenalty = 0;
-    (sdb.absences || []).filter(a => 
-      !a.isArchived &&
-      (!fromDate || a.date >= fromDate) &&
-      (!toDate || a.date <= toDate)
-    ).forEach(a => sdbAbsencePenalty += Math.abs(a.point));
-
-    const sdbGoodScoreBonus = (sdb.goodScores || 0) * 1;
-    const sdbHourBonus = (sdb.good === sdb.total && sdb.total > 0) ? 20 : 0;
-
-    const totalDeductions = parseFloat((codoPenalties + sdbHourPenalty + sdbPoorScorePenalty + sdbAbsencePenalty).toFixed(1));
-    const totalAdditions = parseFloat((personalBonus + classBonus + sdbGoodScoreBonus + sdbHourBonus).toFixed(1));
-    const remainingPenalty = parseFloat((totalDeductions - totalAdditions).toFixed(1));
-
-    let rankLabel = 'Xuất sắc', bClass = 'badge-success';
-    if (remainingPenalty <= 0) { rankLabel = 'Xuất sắc'; bClass = 'badge-success'; }
-    else if (remainingPenalty < 50) { rankLabel = 'Tốt'; bClass = 'badge-info'; }
-    else if (remainingPenalty <= 70) { rankLabel = 'Khá'; bClass = 'badge-warning'; }
-    else if (remainingPenalty <= 100) { rankLabel = 'Đạt'; bClass = 'badge-gray'; }
-    else { rankLabel = 'Chưa đạt'; bClass = 'badge-danger'; }
-
-    return {
-      id: c.id, grade: c.grade, size: c.size,
-      codoPenalties: codoPenalties.toFixed(1), academicPenalties: (sdbHourPenalty + sdbPoorScorePenalty).toFixed(1),
-      sdbAbsencePenalty: sdbAbsencePenalty.toFixed(1), totalDeductions, totalAdditions, remainingPenalty, rankLabel, bClass
-    };
-  }).sort((a, b) => a.remainingPenalty - b.remainingPenalty);
+  return sortClassScoreList(CLASSES.map(c => computeClassScoreItem(c, fromDate, toDate, sdbFullData)));
 }
 
 function renderHistoryTable() {
