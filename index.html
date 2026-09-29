@@ -1708,9 +1708,12 @@
               <label>Đến hết ngày (Chủ Nhật):</label>
               <input type="date" id="finalizeToDate">
             </div>
-            <div class="form-group">
-              <button type="button" class="btn btn-danger" id="btnFinalizeWeek" onclick="finalizeWeek()" style="width:100%; padding:0.6rem;">
+            <div class="form-group" style="display:flex; flex-direction:row; gap:0.4rem;">
+              <button type="button" class="btn btn-danger" id="btnFinalizeWeek" onclick="finalizeWeek()" style="flex:1; padding:0.6rem; white-space:nowrap;">
                 🔒 Chốt Tuần Này
+              </button>
+              <button type="button" class="btn btn-outline" id="btnUndoSelectedWeek" onclick="undoSelectedWeekFromDropdown()" style="padding:0.6rem 0.75rem; border-color:var(--danger); color:var(--danger); background:#fff1f2; font-weight:700; white-space:nowrap;" title="Xóa hoặc Hoàn tác tuần đang chọn ở ô bên cạnh">
+                🗑️ Xóa / Hoàn tác
               </button>
             </div>
           </div>
@@ -2270,10 +2273,16 @@ async function saveRulesToCloud() {
 }
 
 // Hàm 2: Vẽ bảng Quản lý Tiêu chí cho Admin
+// Hàm 2: Vẽ bảng Quản lý Tiêu chí cho Admin (Tự động sắp xếp chuẩn A -> B -> C và thứ tự số)
 function renderRulesConfigTable() {
   const tbody = document.getElementById('rulesConfigTableBody');
   if(!tbody) return;
   tbody.innerHTML = '';
+
+  // Tự động sắp xếp mảng RULES theo Mã tiêu chí (VD: A01 -> B01 -> C01 -> C02... -> C05 -> C06 -> C07...)
+  RULES.sort((a, b) => 
+    String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' })
+  );
   
   RULES.forEach((r) => {
     let groupBadge = '';
@@ -6419,9 +6428,6 @@ function renderHistoryTable() {
       <div class="no-print" style="display:flex; gap:0.5rem;">
         <button type="button" class="btn btn-success btn-sm" onclick="exportHistoryCSV()">📥 Xuất Excel</button>
         <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In báo cáo</button>
-        ${(loggedUser && loggedUser.role === 'admin') ? `
-          <button type="button" class="btn btn-danger btn-sm" onclick="deleteHistoryWeek(${originalIndex})" title="Xóa hoặc Hoàn tác bản chốt này">🗑️ Xóa / Hoàn tác</button>
-        ` : ''}
       </div>
     </div>
 
@@ -6501,6 +6507,28 @@ function filterHistoryRows() {
       </tr>
     `;
   });
+}
+
+function undoSelectedWeekFromDropdown() {
+  const weekNum = parseInt(document.getElementById('selectWeekToFinalize')?.value) || 1;
+  const idx = weeklyHistory.findIndex(h => 
+    (!h.type || h.type === 'WEEK') && 
+    (h.weekNumber === weekNum || (h.week && (h.week.toLowerCase().startsWith(`tuần ${weekNum} `) || h.week.toLowerCase() === `tuần ${weekNum}`)))
+  );
+
+  if (idx === -1) {
+    // Nếu tuần đang chọn ở ô trên chưa chốt, kiểm tra xem ở bảng lịch sử bên dưới đang mở kỳ nào để xóa kỳ đó
+    const activeList = getFilteredHistoryList(currentHistoryMode);
+    const currentObj = activeList[selectedHistoryIndex];
+    if (currentObj && confirm(`ℹ️ [Tuần ${weekNum}] hiện chưa được chốt.\n\nThầy có muốn Xóa / Hoàn tác kỳ đang xem bên dưới là [${currentObj.week}] không?`)) {
+      deleteHistoryWeek(currentObj.origIdx);
+    } else if (!currentObj) {
+      alert(`ℹ️ Tuần ${weekNum} hiện chưa được chốt nên không cần xóa/hoàn tác!`);
+    }
+    return;
+  }
+
+  deleteHistoryWeek(idx);
 }
 
 function deleteHistoryWeek(originalIdx) {
