@@ -743,9 +743,12 @@
             </div>
 
           </div>
-          <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
-            <button type="submit" class="btn btn-primary">💾 Lưu Biên Bản Cờ Đỏ (Gửi BTV Duyệt)</button>
-          </div>
+          <div style="margin-top:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; border-top:1px dashed var(--border); padding-top:1rem;">
+          <button type="button" class="btn btn-success" onclick="handleCodoZeroViolationReport()" style="background:#0d9488;">
+            ✅ Báo Cáo Lớp Thực Hiện Tốt (Không Có Lỗi - Điểm Danh)
+          </button>
+          <button type="submit" class="btn btn-primary">💾 Lưu Biên Bản Có Lỗi (Gửi BTV Duyệt)</button>
+        </div>
         </form>
       </div>
     </div>
@@ -1219,6 +1222,35 @@
 
   <!-- TAB 6: PHÊ DUYỆT BIÊN BẢN -->
   <div id="tab-review" class="tab-content">
+    <!-- KHUNG ĐIỂM DANH TIẾN ĐỘ BÁO CÁO CỦA 36 CỜ ĐỎ & 36 SỔ ĐẦU BÀI -->
+    <div class="card no-print" style="border-left: 5px solid #0d9488; margin-bottom: 1.25rem;">
+      <div class="card-header" style="cursor:pointer;" onclick="const b = document.getElementById('checkinMatrixBodyBox'); b.style.display = b.style.display === 'none' ? 'block' : 'none';">
+        <h2>📋 ĐIỂM DANH TIẾN ĐỘ BÁO CÁO TUẦN CỦA 36 CỜ ĐỎ & 36 SỔ ĐẦU BÀI <span style="font-size:0.78rem; font-weight:normal; color:var(--text-muted);">(Bấm để Ẩn/Hiện)</span></h2>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <span class="badge badge-success" id="checkinStatSdb">SĐB: 0/36</span>
+          <span class="badge badge-info" id="checkinStatCodo">Cờ đỏ: 0/36</span>
+        </div>
+      </div>
+      <div class="card-body" id="checkinMatrixBodyBox" style="display:block;">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">
+          Theo dõi theo thời gian thực của <strong>Tuần đang chọn trên Bảng Xếp Hạng</strong>. Lớp không có lỗi vẫn bắt buộc phải bấm <em>"Lưu SĐB"</em> hoặc <em>"Báo cáo không có lỗi (Cờ đỏ)"</em> để hệ thống ghi nhận điểm danh.
+        </p>
+        <div id="checkinMissingSummary" style="margin-bottom:0.85rem; font-size:0.84rem; line-height:1.6;"></div>
+        <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center; width:90px;">Chi đoàn</th>
+                <th style="text-align:center;">📖 Cán Bộ Sổ Đầu Bài</th>
+                <th style="text-align:center;">🚩 Cờ Đỏ Chấm Lớp Này</th>
+                <th>Chi tiết người báo cáo & Thời gian</th>
+              </tr>
+            </thead>
+            <tbody id="checkinMatrixTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-header">
         <h2>⚖️ BẢNG XÉT DUYỆT VI PHẠM & ĐỐI SOÁT KHIẾU NẠI</h2>
@@ -4335,7 +4367,10 @@ function saveFullSdbData() {
       sdbFullData[targetClass].medScores = medScores;
       sdbFullData[targetClass].poorScores = poorScores;
       sdbFullData[targetClass].updatedBy = loggedUser.name;
-      sdbFullData[targetClass].updatedAt = new Date().toLocaleDateString('vi-VN');
+      const wInfoNow = (typeof getSelectedBoardWeekInfo === 'function') ? getSelectedBoardWeekInfo() : { weekNum: 1 };
+      sdbFullData[targetClass].updatedAt = new Date().toLocaleString('vi-VN');
+      sdbFullData[targetClass].reportedWeek = wInfoNow.weekNum;
+      sdbFullData[targetClass].isReportedThisWeek = true;
 
       updateSingleClassSdbToCloud(targetClass, sdbFullData[targetClass]);
       
@@ -5620,14 +5655,186 @@ function renderTnxkLogsTable() {
   });
 }
 
-// ==================== PHÊ DUYỆT & KHIẾU NẠI ====================
+// ==================== CHỨC NĂNG ĐIỂM DANH CỜ ĐỎ (BÁO CÁO 0 VI PHẠM) & BẢNG THEO DÕI TIẾN ĐỘ ====================
+async function handleCodoZeroViolationReport() {
+  const classId = document.getElementById('codoClassSelect').value;
+  const date = document.getElementById('codoDateInput').value;
+
+  if (!classId || !date) {
+    alert('⚠️️ Vui lòng chọn Ngày ghi nhận và Chi đoàn cần báo cáo!');
+    return;
+  }
+
+  if (loggedUser && loggedUser.role !== 'admin' && !loggedUser.scope.includes(classId)) {
+    alert('⛔ LỖI PHÂN QUYỀN: Bạn không được phân công chấm chi đoàn này!');
+    return;
+  }
+
+  // Kiểm tra xem trong ngày hôm đó Cờ đỏ đã bấm báo cáo 0 lỗi cho lớp này chưa
+  const alreadyReported = violations.some(v => 
+    v.classId === classId && v.date === date && v.code === 'A00' && v.status !== 'Đã hủy'
+  );
+  if (alreadyReported) {
+    alert(`ℹ️ Bạn đã điểm danh báo cáo "0 vi phạm" cho Chi đoàn ${classId} trong ngày ${date} rồi!`);
+    return;
+  }
+
+  if (!confirm(`✅ XÁC NHẬN ĐIỂM DANH BÁO CÁO:\n\nXác nhận trong ngày [${date}], Chi đoàn [${classId}] thực hiện TỐT nề nếp, KHÔNG CÓ VI PHẠM nào?`)) {
+    return;
+  }
+
+  const zeroRecord = {
+    id: Date.now(),
+    date: date,
+    classId: classId,
+    student: `Tập thể ${classId}`,
+    code: 'A00',
+    name: 'Thực hiện tốt nề nếp (Báo cáo 0 vi phạm)',
+    points: 0,
+    mult: 1,
+    recorder: loggedUser ? loggedUser.name : 'Cờ đỏ',
+    evidence: 'Điểm danh báo cáo định kỳ: Lớp thực hiện nghiêm túc, không có lỗi vi phạm.',
+    linkEvidence: '',
+    imageEvidence: '',
+    status: 'Đã duyệt', // Điểm bằng 0 nên tự động duyệt để tính điểm danh ngay lập tức
+    isClassBonus: true, // Thêm dòng này để KHÔNG bị đẩy sang màn hình Tra cứu Cá nhân
+    isZeroReport: true
+  };
+
+  violations.push(zeroRecord);
+  if (typeof appendSingleViolationToCloud === 'function') {
+    await appendSingleViolationToCloud(zeroRecord);
+  }
+
+  if (mqttClient && mqttClient.connected) {
+    publishUpdate('NEW_VIOLATION', zeroRecord);
+  }
+
+  alert(`✅ Đã ghi nhận điểm danh báo cáo cho Chi đoàn ${classId} thành công!`);
+  renderCodoLogsTable();
+  renderReviewTable();
+  renderLeaderboard();
+}
+
+function renderCheckinProgressMatrix() {
+  const tbody = document.getElementById('checkinMatrixTableBody');
+  const missingBox = document.getElementById('checkinMissingSummary');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const wInfo = (typeof getSelectedBoardWeekInfo === 'function') ? getSelectedBoardWeekInfo() : { weekNum: 1, fromDate: '', toDate: '' };
+
+  let sdbDoneCount = 0;
+  let codoDoneCount = 0;
+  let missingSdbClasses = [];
+  let missingCodoClasses = [];
+
+  CLASSES.forEach(c => {
+    // 1. Kiểm tra tiến độ Sổ Đầu Bài của lớp c.id trong tuần đang chọn
+    const sdb = sdbFullData[c.id] || {};
+    const hasAbsencesInWeek = (sdb.absences || []).some(a => 
+      (wInfo.fromDate && wInfo.toDate) ? (a.date >= wInfo.fromDate && a.date <= wInfo.toDate) : !a.isArchived
+    );
+    const hasModifiedLessonOrScore = Boolean(
+      (sdb.total && sdb.good !== undefined && sdb.good !== sdb.total) ||
+      sdb.fair > 0 || sdb.medium > 0 || sdb.weak > 0 || sdb.poor > 0 ||
+      sdb.goodScores > 0 || sdb.fairScores > 0 || sdb.medScores > 0 || sdb.poorScores > 0
+    );
+    const sdbReported = Boolean(
+      (sdb.isReportedThisWeek && (!sdb.reportedWeek || sdb.reportedWeek === wInfo.weekNum)) ||
+      hasAbsencesInWeek ||
+      hasModifiedLessonOrScore ||
+      (sdb.updatedBy && sdb.updatedBy !== 'Cán bộ SĐB lớp' && !String(sdb.updatedBy).includes('Hệ thống'))
+    );
+
+    if (sdbReported) sdbDoneCount++;
+    else missingSdbClasses.push(c.id);
+
+    // 2. Kiểm tra tiến độ Cờ Đỏ chấm lớp c.id trong tuần đang chọn (Có nhập lỗi HOẶC bấm Báo cáo 0 vi phạm mã A00)
+    const codoLogsInWeek = violations.filter(v => {
+      if (v.classId !== c.id || v.status === 'Đã hủy' || v.points > 0) return false;
+      if (v.isClassBonus && v.code !== 'A00') return false;
+      if (v.recorder && String(v.recorder).includes('TNXK')) return false;
+      if (wInfo.fromDate && wInfo.toDate) return v.date >= wInfo.fromDate && v.date <= wInfo.toDate;
+      return !v.isArchived;
+    });
+
+    const codoReported = codoLogsInWeek.length > 0;
+    if (codoReported) codoDoneCount++;
+    else missingCodoClasses.push(c.id);
+
+    // Tìm xem tài khoản Cờ đỏ nào đang được phân công chấm lớp này
+    const assignedCodoUser = systemUsers.find(u => u.role === 'codo' && Array.isArray(u.scope) && u.scope.includes(c.id));
+    const assignedCodoName = assignedCodoUser ? assignedCodoUser.name : 'Chưa rõ Cờ đỏ';
+
+    const sdbBadge = sdbReported
+      ? `<span class="badge badge-success">✅ Đã báo cáo</span>`
+      : `<span class="badge badge-danger">⏳ Chưa nộp SĐB</span>`;
+
+    const codoBadge = codoReported
+      ? `<span class="badge badge-success">✅ Đã báo cáo (${codoLogsInWeek.length})</span>`
+      : `<span class="badge badge-warning">⏳ Chưa báo cáo</span>`;
+
+    const lastCodoLog = codoReported ? codoLogsInWeek[codoLogsInWeek.length - 1] : null;
+
+      let sdbInfo = '<em style="color:var(--danger);">Chưa bấm lưu</em>';
+      if (sdbReported) {
+        let uBy = sdb.updatedBy ? sdb.updatedBy : 'Đã lưu';
+        let uAt = sdb.updatedAt ? sdb.updatedAt : '';
+        sdbInfo = uBy + ' (' + uAt + ')';
+      }
+
+      let codoInfo = '<em style="color:#b45309;">Chờ [' + assignedCodoName + ']</em>';
+      if (codoReported && lastCodoLog) {
+        codoInfo = lastCodoLog.recorder + ' (' + lastCodoLog.date + ')';
+      }
+
+      const detailText = `
+        <span style="margin-right:1rem;">📖 <strong>SĐB:</strong> ${sdbInfo}</span>
+        <span>🚩 <strong>Cờ đỏ:</strong> ${codoInfo}</span>
+      `;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center;"><strong>Chi đoàn ${c.id}</strong></td>
+      <td style="text-align:center;">${sdbBadge}</td>
+      <td style="text-align:center;">${codoBadge}</td>
+      <td style="font-size:0.78rem; color:var(--text-muted);">${detailText}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (document.getElementById('checkinStatSdb')) {
+    document.getElementById('checkinStatSdb').textContent = `SĐB đã nộp: ${sdbDoneCount}/${CLASSES.length}`;
+  }
+  if (document.getElementById('checkinStatCodo')) {
+    document.getElementById('checkinStatCodo').textContent = `Cờ đỏ đã báo cáo: ${codoDoneCount}/${CLASSES.length}`;
+  }
+
+  if (missingBox) {
+    missingBox.innerHTML = `
+      <div style="background:#fef2f2; border:1px solid #fecaca; padding:0.5rem 0.75rem; border-radius:6px; margin-bottom:0.4rem; color:#991b1b;">
+        <strong>🚨 Các lớp CHƯA NỘP Sổ Đầu Bài (${missingSdbClasses.length} lớp):</strong> 
+        ${missingSdbClasses.length > 0 ? missingSdbClasses.join(', ') : '<span style="color:var(--success); font-weight:bold;">🎉 Đã nộp đủ 100%!</span>'}
+      </div>
+      <div style="background:#fffbeb; border:1px solid #fde68a; padding:0.5rem 0.75rem; border-radius:6px; color:#92400e;">
+        <strong>🚩 Các lớp Cờ Đỏ CHƯA BÁO CÁO (${missingCodoClasses.length} lớp):</strong> 
+        ${missingCodoClasses.length > 0 ? missingCodoClasses.join(', ') : '<span style="color:var(--success); font-weight:bold;">🎉 Đã báo cáo đủ 100%!</span>'}
+      </div>
+    `;
+  }
+}
+
 function renderReviewTable() {
+  renderCheckinProgressMatrix(); // Gọi tự động mỗi khi mở tab
+
   const filter = document.getElementById('reviewStatusFilter') ? document.getElementById('reviewStatusFilter').value : 'ALL';
   const tbody = document.getElementById('reviewTableBody');
   if(!tbody) return;
   tbody.innerHTML = '';
 
-  const list = violations.filter(v => {
+  const list = (violations || []).filter(v => {
+    if (!v || v.code === 'A00' || v.isZeroReport) return false; // Ẩn lỗi điểm danh khỏi bảng Admin
     const matchStatus = (filter === 'ALL' || v.status === filter);
     // Nếu không phải Admin: Ẩn các đơn Tố giác chưa được kiểm chứng (Chờ duyệt) hoặc các biên bản Đã hủy
     if (!loggedUser || loggedUser.role !== 'admin') {
@@ -7561,7 +7768,7 @@ function finalizeWeek() {
 
   Object.keys(sdbFullData).forEach(cid => {
     let s = sdbFullData[cid];
-    s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;
+    s.good = s.total; s.fair = 0; s.medium = 0; s.weak = 0; s.poor = 0;s.isReportedThisWeek = false;
     s.goodScores = 0; s.fairScores = 0; s.medScores = 0; s.poorScores = 0;
     if (s.absences) {
       s.absences.forEach(a => {
