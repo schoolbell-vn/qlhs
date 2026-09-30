@@ -409,15 +409,15 @@
   <nav class="sidebar no-print">
   <button class="tab-btn active" id="tabBtn-board" onclick="switchTab('board')">📊 Bảng Xếp Hạng 36 chi đoàn</button>
     <button class="tab-btn" id="tabBtn-sdb" onclick="switchTab('sdb')">📖 Cán Bộ SĐB (Nghỉ Học & Điểm KT)</button>
-    <button class="tab-btn" id="tabBtn-codo" onclick="switchTab('codo')">🚩 Cờ Đỏ Chấm Tác Phong & Nề Nếp</button>
-    <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Đội TNXK</button>
+    <button class="tab-btn" id="tabBtn-codo" onclick="switchTab('codo')">🚩 Cờ Đỏ Chấm (Tác Phong & Nề Nếp)</button>
+    <button class="tab-btn" id="tabBtn-tnxk" onclick="switchTab('tnxk')">⚡ Đội Thanh Niên Xung Kích</button>
     <button class="tab-btn" id="tabBtn-report" onclick="switchTab('report')">📢 Tố Giác Vi Phạm</button>
     <button class="tab-btn" id="tabBtn-bch-bonus" onclick="switchTab('bch-bonus')">🎁 BCH Đoàn Cộng Thưởng</button>
     <button class="tab-btn" id="tabBtn-search" onclick="switchTab('search')">👤 Tra Cứu Rèn Luyện Cá Nhân</button>
     <button class="tab-btn" id="tabBtn-hk1" onclick="switchTab('hk1')">🎓 C.Nhân: Rèn Luyện Kỳ & Năm</button>
     <button class="tab-btn" id="tabBtn-hk1-class" onclick="switchTab('hk1-class')">🏆 Tập Thể: Thi Đua HK1 & Cả Năm</button>
     <button class="tab-btn" id="tabBtn-review" onclick="switchTab('review')">
-      ⚖️ Duyệt Biên Bản <span class="tab-badge" id="pendingReviewBadge">0</span>
+      ⚖️ Duyệt Biên Bản/ Khiếu nại<span class="tab-badge" id="pendingReviewBadge">0</span>
     </button>
     <button class="tab-btn" id="tabBtn-alerts" onclick="switchTab('alerts')">🚨 Báo Động Đỏ</button>
     <button class="tab-btn" id="tabBtn-history" onclick="switchTab('history')">📚 Lịch Sử Chốt Tuần</button>
@@ -1952,7 +1952,7 @@ async function saveTabsConfig() {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
+      body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG }))
     });
     
     // Bắn tín hiệu MQTT để các máy GVCN / BGH đang mở tự động cập nhật thanh Menu ngay lập tức
@@ -1986,6 +1986,14 @@ async function saveTabsConfig() {
 let isFetchingCloud = false;
 let lastCloudFetchTime = 0;
 // Hàm tải dữ liệu bằng JSONP (Chạy sau khi trang đã mở xong để không làm quay vòng tròn trên Tab)
+// Hàm tạo tham số xác thực gửi kèm lên Server (Nếu đang là Admin thì Server mới trả mật khẩu các lớp về)
+function getAuthQueryParams() {
+  if (loggedUser && loggedUser.username && loggedUser.pass) {
+    return `&authUser=${encodeURIComponent(loggedUser.username)}&authPass=${encodeURIComponent(loggedUser.pass)}`;
+  }
+  return "";
+}
+
 function loadCloudDataViaJsonp() {
   return new Promise((resolve, reject) => {
     const cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
@@ -2011,13 +2019,12 @@ function loadCloudDataViaJsonp() {
       reject(new Error("Lỗi tải script JSONP"));
     };
 
-    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + "&t=" + Date.now();
+    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&t=" + Date.now();
     document.body.appendChild(script);
   });
 }
 
 async function fetchDatabaseFromCloud(force = false) {
-  // Chống gọi trùng lặp 2-3 lần liên tiếp trong vòng 5 giây lúc mới mở trang
   const now = Date.now();
   if (isFetchingCloud) return;
   if (!force && (now - lastCloudFetchTime < 5000)) return;
@@ -2027,9 +2034,8 @@ async function fetchDatabaseFromCloud(force = false) {
 
   try {
     let db;
-    // Ưu tiên thử fetch ngầm trước (không làm quay vòng tròn trên tab trình duyệt)
     try {
-      const response = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + now, { redirect: "follow" });
+      const response = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + now + getAuthQueryParams(), { redirect: "follow" });
       db = await response.json();
     } catch (fetchErr) {
       // Chỉ khi trình duyệt chặn CORS (như máy đăng nhập nhiều Gmail) mới tự động bật JSONP
@@ -2068,12 +2074,16 @@ async function fetchDatabaseFromCloud(force = false) {
       if (typeof renderRulesConfigTable === 'function') renderRulesConfigTable(); // Vẽ lại bảng cấu hình ngay lập tức
     }
     // Nạp Cấu hình Ma trận phân quyền Tab & Cấu hình Xếp loại RL
-    if (db.tabs) {
+      if (db.tabs) {
       TABS_CONFIG = db.tabs;
       localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
       if (db.tabs.conductConfig) {
         CONDUCT_CONFIG = { ...DEFAULT_CONDUCT_CONFIG, ...db.tabs.conductConfig };
         localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
+      }
+      if (db.tabs.mqttSecret) {
+        localStorage.setItem('yka_mqtt_secret_v1', db.tabs.mqttSecret);
+        if (!mqttClient || !mqttClient.connected) connectMqtt();
       }
     }
 
@@ -2252,7 +2262,7 @@ async function saveRulesToCloud() {
       method: 'POST',
       mode: 'no-cors', // <--- CHÌA KHÓA VƯỢT TƯỜNG LỬA GITHUB
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "save_data", fileName: "db_rules.json", content: RULES })
+      body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_rules.json", content: RULES }))
     });
     
     initRuleSelects(); 
@@ -2394,70 +2404,32 @@ function deleteRule(code) {
     renderRulesConfigTable();
   }
 }
-// 3. TẠO HỆ THỐNG TÀI KHOẢN TỰ ĐỘNG CHO 36 CHI ĐOÀN
+// 3. TẠO KHUNG DANH SÁCH TÀI KHOẢN RỖNG MẬT KHẨU (CHỐNG HỌC SINH F12 SOI CODE)
 function generateDefaultUsers() {
-  // Tạo sẵn danh sách 36 lớp cố định để không bị phụ thuộc mạng
   const fixedClasses = [];
   ['10', '11', '12'].forEach(grade => {
-    for (let i = 1; i <= 12; i++) {
-      fixedClasses.push(grade + 'A' + i);
-    }
+    for (let i = 1; i <= 12; i++) fixedClasses.push(grade + 'A' + i);
   });
 
+  // Tuyệt đối không lưu mật khẩu thật trong mã nguồn HTML
   const users = [
-    { username: 'admin', pass: 'admin123', name: 'Bí thư Đoàn Trường', role: 'admin', scope: fixedClasses, sdbClass: null }
+    { username: 'admin', pass: '', name: 'Bí thư Đoàn Trường', role: 'admin', scope: fixedClasses, sdbClass: null }
   ];
 
-  // 36 Tài khoản Sổ đầu bài
   fixedClasses.forEach(c => {
-    users.push({
-      username: `sdb_${c.toLowerCase()}`,
-      pass: `sdb@${c.toLowerCase()}`,
-      name: `Cán sự SĐB Chi đoàn ${c}`,
-      role: 'sdb',
-      scope: [c],
-      sdbClass: c
-    });
+    users.push({ username: `sdb_${c.toLowerCase()}`, pass: '', name: `Cán sự SĐB Chi đoàn ${c}`, role: 'sdb', scope: [c], sdbClass: c });
   });
-
-  // 36 Tài khoản Cờ đỏ
   fixedClasses.forEach(c => {
-    users.push({
-      username: `codo_${c.toLowerCase()}`,
-      pass: `codo@${c.toLowerCase()}`,
-      name: `Cờ Đỏ Phụ Trách Chi Đoàn ${c}`,
-      role: 'codo',
-      scope: [c],
-      sdbClass: null
-    });
+    users.push({ username: `codo_${c.toLowerCase()}`, pass: '', name: `Cờ Đỏ Phụ Trách Chi Đoàn ${c}`, role: 'codo', scope: [c], sdbClass: null });
   });
-  // 36 Tài khoản Giáo viên chủ nhiệm (GVCN)
   fixedClasses.forEach(c => {
-    users.push({
-      username: `gvcn_${c.toLowerCase()}`,
-      pass: `gvcn@${c.toLowerCase()}`,
-      name: `GVCN Chi đoàn ${c}`,
-      role: 'gvcn',
-      scope: [c],
-      sdbClass: null
-    });
+    users.push({ username: `gvcn_${c.toLowerCase()}`, pass: '', name: `GVCN Chi đoàn ${c}`, role: 'gvcn', scope: [c], sdbClass: null });
   });
-  // 12 Tài khoản Thanh niên xung kích (Chấm toàn trường)
   for (let i = 1; i <= 12; i++) {
-    users.push({ 
-      username: `tnxk_${i}`, 
-      pass: `tnxk@${i}`, 
-      name: `Cán bộ TNXK số ${i}`, 
-      role: 'tnxk', 
-      scope: fixedClasses, 
-      sdbClass: null, 
-      assignedGrade: 'Toàn trường' 
-    });
+    users.push({ username: `tnxk_${i}`, pass: '', name: `Cán bộ TNXK số ${i}`, role: 'tnxk', scope: fixedClasses, sdbClass: null, assignedGrade: 'Toàn trường' });
   }
-
   return users;
 }
-
 
 // TỰ ĐỘNG QUÉT VÀ LOẠI BỎ TRIỆT ĐỂ BỘ NHỚ ĐỆM CŨ CHỨA LỚP 10L / 11L
 (function purgeLegacyCache() {
@@ -2523,44 +2495,78 @@ CLASSES.forEach(c => {
 
 // 5. BIÊN BẢN VI PHẠM CỜ ĐỎ & TNXK
 let violations = JSON.parse(localStorage.getItem('yka_violations_v1')) || [];
-// ==================== HỆ THỐNG ĐỒNG BỘ MQTT HIVEMQ ====================
+// ==================== HỆ THỐNG ĐỒNG BỘ MQTT HIVEMQ (BẢO MẬT QUA CLOUD) ====================
 let mqttClient = null;
 const MQTT_TOPIC = "yka/thidua/sync"; // Kênh chung để gửi nhận dữ liệu
 
-// 1. Lưu thông tin vào máy để khỏi nhập lại
-function saveAndConnectMqtt() {
+// Hàm mã hóa/giải mã nhẹ chuỗi cấu hình để không lưu dạng văn bản thuần (plain text)
+function encodeMqttSecret(obj) {
+  try { return btoa(encodeURIComponent(JSON.stringify(obj))); } catch(e) { return ''; }
+}
+function decodeMqttSecret(str) {
+  try { return JSON.parse(decodeURIComponent(atob(str))); } catch(e) { return null; }
+}
+
+// 1. Admin lưu thông tin máy chủ MQTT và đồng bộ ngầm lên Google Drive cho toàn trường
+async function saveAndConnectMqtt() {
+  if (!loggedUser || loggedUser.role !== 'admin') {
+    alert('⛔ Chỉ Admin mới có quyền thiết lập máy chủ!');
+    return;
+  }
   const config = {
     url: document.getElementById('mqttUrl').value.trim(),
     user: document.getElementById('mqttUser').value.trim(),
     pass: document.getElementById('mqttPass').value.trim()
   };
-  localStorage.setItem('yka_mqtt_config', JSON.stringify(config));
-  document.getElementById('mqttModal').style.display = 'none';
-  connectMqtt();
-}
 
-// 2. Kết nối tới HiveMQ (ĐÃ CODE CỨNG ĐỂ TEST)
-function connectMqtt() {
-  // GHI CHÚ: Sau khi test xong, thầy nhớ xóa hoặc ẩn đoạn cấu hình cứng này đi nhé
-  const config = {
-    url: "wss://7e225cbc2f0c41febc61a20d1a0c5b3d.s1.eu.hivemq.cloud:8884/mqtt",
-    user: "ngoctuyka",
-    pass: "Tu12345678@"
-  };
-  
-  // Tự động điền luôn vào bảng giao diện Cài đặt máy chủ để thầy dễ nhìn
-  if(document.getElementById('mqttUrl')) {
-      document.getElementById('mqttUrl').value = config.url;
-      document.getElementById('mqttUser').value = config.user;
-      document.getElementById('mqttPass').value = config.pass;
+  if (!config.url || !config.user || !config.pass) {
+    alert('⚠️ Vui lòng nhập đầy đủ URL, Username và Password của HiveMQ!');
+    return;
   }
 
-  document.getElementById('mqttStatusDisplay').innerHTML = "🟡 Đang kết nối tới HiveMQ...";
-  document.getElementById('mqttStatusDisplay').style.color = "var(--warning)";
+  const encoded = encodeMqttSecret(config);
+  localStorage.setItem('yka_mqtt_secret_v1', encoded);
+
+  // Đóng gói vào TABS_CONFIG để đẩy lên Google Drive (db_tabs.json) cho các máy Cờ đỏ/SĐB tự nhận
+  TABS_CONFIG.mqttSecret = encoded;
+  localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+  if (typeof syncDataToCloud === 'function') {
+    syncDataToCloud("db_tabs.json", TABS_CONFIG);
+  }
+
+  document.getElementById('mqttModal').style.display = 'none';
+  connectMqtt();
+  alert('✅ Đã lưu bảo mật cấu hình MQTT và đồng bộ lên Đám mây cho toàn hệ thống!');
+}
+
+// 2. Kết nối tới HiveMQ (Không còn bất kỳ mật khẩu cứng nào trong code)
+function connectMqtt() {
+  const encoded = (typeof TABS_CONFIG !== 'undefined' && TABS_CONFIG.mqttSecret) || localStorage.getItem('yka_mqtt_secret_v1');
+  const config = encoded ? decodeMqttSecret(encoded) : null;
+
+  const statusEl = document.getElementById('mqttStatusDisplay');
+  if (!config || !config.url || !config.user || !config.pass) {
+    if (statusEl) {
+      statusEl.innerHTML = "⚪ Chưa cấu hình máy chủ MQTT (Admin bấm ⚙️ Máy chủ để nhập 1 lần)";
+      statusEl.style.color = "var(--text-muted)";
+    }
+    return;
+  }
+
+  // CHỈ điền thông tin vào ô input nếu người đang đăng nhập là ADMIN
+  if (loggedUser && loggedUser.role === 'admin' && document.getElementById('mqttUrl')) {
+    document.getElementById('mqttUrl').value = config.url;
+    document.getElementById('mqttUser').value = config.user;
+    document.getElementById('mqttPass').value = config.pass;
+  }
+
+  if (statusEl) {
+    statusEl.innerHTML = "🟡 Đang kết nối tới HiveMQ...";
+    statusEl.style.color = "var(--warning)";
+  }
 
   if (mqttClient) mqttClient.end();
 
-  // Khởi tạo kết nối với tài khoản đã code cứng
   mqttClient = mqtt.connect(config.url, {
     username: config.user,
     password: config.pass,
@@ -2568,15 +2574,19 @@ function connectMqtt() {
   });
 
   mqttClient.on('connect', () => {
-    document.getElementById('mqttStatusDisplay').innerHTML = "🟢 ĐÃ KẾT NỐI VỚI MÁY CHỦ";
-    document.getElementById('mqttStatusDisplay').style.color = "var(--success)";
+    if (statusEl) {
+      statusEl.innerHTML = "🟢 ĐÃ KẾT NỐI VỚI MÁY CHỦ";
+      statusEl.style.color = "var(--success)";
+    }
     mqttClient.subscribe(MQTT_TOPIC); 
-    mqttClient.subscribe("yka/thidua/students"); // Kênh nhận danh sách học sinh
+    mqttClient.subscribe("yka/thidua/students");
   });
 
   mqttClient.on('error', (err) => {
-    document.getElementById('mqttStatusDisplay').innerHTML = "🔴 LỖI KẾT NỐI: HiveMQ từ chối truy cập";
-    document.getElementById('mqttStatusDisplay').style.color = "var(--danger)";
+    if (statusEl) {
+      statusEl.innerHTML = "🔴 LỖI KẾT NỐI: Sai thông tin hoặc HiveMQ từ chối truy cập";
+      statusEl.style.color = "var(--danger)";
+    }
     console.error("Lỗi MQTT:", err);
   });
 
@@ -2752,21 +2762,84 @@ function guestLogin() {
   setupUserSessionUI();
 }
 
-function handleLoginSubmit(e) {
+// Hàm gọi JSONP xác thực đăng nhập trực tiếp trên Server (Vượt mọi tường lửa & chống F12)
+function verifyLoginViaJsonp(u, p) {
+  return new Promise((resolve, reject) => {
+    const cbName = "ykaLoginCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    const script = document.createElement("script");
+    script.async = true;
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error("Quá thời gian kết nối máy chủ xác thực"));
+    }, 15000);
+
+    window[cbName] = function(res) {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve(res);
+    };
+
+    script.onerror = function() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error("Lỗi kết nối máy chủ xác thực"));
+    };
+
+    script.src = `${MASTER_APP_SCRIPT_URL}?action=login&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&callback=${cbName}&t=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
+
+async function handleLoginSubmit(e) {
   e.preventDefault();
   const u = document.getElementById('loginUsername').value.trim();
   const p = document.getElementById('loginPassword').value.trim();
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const oldBtnText = submitBtn ? submitBtn.innerHTML : '🔐 Đăng Nhập Hệ Thống';
 
-  const found = systemUsers.find(user => user.username.toLowerCase() === u.toLowerCase() && user.pass === p);
-  if (!found) {
-    alert('❌ Tên đăng nhập hoặc mật khẩu không đúng! Vui lòng kiểm tra lại.');
-    return;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ Đang xác thực bảo mật trên Máy chủ...';
   }
 
-  loggedUser = found;
-  sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
-  document.getElementById('loginScreen').style.display = 'none';
-  setupUserSessionUI();
+  try {
+    let res;
+    try {
+      const url = `${MASTER_APP_SCRIPT_URL}?action=login&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&t=${Date.now()}`;
+      const response = await fetch(url, { redirect: "follow" });
+      res = await response.json();
+    } catch (fetchErr) {
+      res = await verifyLoginViaJsonp(u, p);
+    }
+
+    if (!res || res.status !== 'success' || !res.user) {
+      alert('❌ Tên đăng nhập hoặc mật khẩu không đúng! (Đã kiểm tra trực tiếp trên Máy chủ)');
+      return;
+    }
+
+    loggedUser = res.user;
+    loggedUser.pass = p; // Lưu giữ mật khẩu trong phiên để làm chữ ký điện tử khi gửi lệnh Admin
+
+    // Nếu là Admin đăng nhập thành công, Server sẽ trả kèm danh sách toàn bộ tài khoản có mật khẩu
+    if (res.allUsers && Array.isArray(res.allUsers)) {
+      systemUsers = res.allUsers;
+      localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+    }
+
+    sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+    document.getElementById('loginScreen').style.display = 'none';
+    setupUserSessionUI();
+  } catch (err) {
+    alert('⚠️ Không thể kết nối tới máy chủ để kiểm tra mật khẩu. Vui lòng kiểm tra mạng Internet!');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = oldBtnText;
+    }
+  }
 }
 
 function logout() {
@@ -3132,7 +3205,7 @@ async function saveConductConfigToCloud() {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG })
+      body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG }))
     });
 
     if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
@@ -4805,18 +4878,28 @@ function calcCodoPoints() {
 }
 
 
-// HỆ THỐNG ĐỒNG BỘ CƠ SỞ DỮ LIỆU LÊN CLOUD (GOOGLE DRIVE)
+// HỆ THỐNG ĐỒNG BỘ CƠ SỞ DỮ LIỆU LÊN CLOUD (CÓ CHỮ KÝ XÁC THỰC CHỐNG GIẢ MẠO QUYỀN)
 // =========================================================================
+function attachAuthCredentials(payloadObj) {
+  return {
+    ...payloadObj,
+    authUser: loggedUser ? loggedUser.username : 'guest',
+    authPass: loggedUser ? (loggedUser.pass || '') : ''
+  };
+}
+
 async function syncDataToCloud(fileName, content) {
   try {
+    // Nếu lưu danh sách tài khoản, tuyệt đối không lưu mật khẩu vào trình duyệt của máy không phải Admin
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ LƯU TÀI KHOẢN LÊN DRIVE
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "save_data", fileName: fileName, content: content })
+      body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: fileName, content: content }))
     });
   } catch(e) { console.error("Lỗi lưu lên cloud:", e); }
 }
+
 // Gửi lẻ 1 biên bản mới (Chống mất biên bản khi Cờ đỏ & TNXK chấm đồng loạt)
 async function appendSingleViolationToCloud(newRecord) {
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
@@ -4825,12 +4908,12 @@ async function appendSingleViolationToCloud(newRecord) {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "append_violation", record: newRecord })
+      body: JSON.stringify(attachAuthCredentials({ action: "append_violation", record: newRecord }))
     });
   } catch(e) { console.error("Lỗi lưu biên bản lẻ:", e); }
 }
 
-// Gửi lẻ Sổ đầu bài của 1 lớp (36 lớp lưu cùng lúc không đè nhau)
+// Gửi lẻ Sổ đầu bài của 1 lớp (Chỉ đúng SĐB lớp đó hoặc Admin mới lưu được trên Server)
 async function updateSingleClassSdbToCloud(classId, classData) {
   localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
   try {
@@ -4838,24 +4921,23 @@ async function updateSingleClassSdbToCloud(classId, classData) {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "update_single_sdb", classId: classId, classData: classData })
+      body: JSON.stringify(attachAuthCredentials({ action: "update_single_sdb", classId: classId, classData: classData }))
     });
   } catch(e) { console.error("Lỗi lưu SĐB lẻ:", e); }
 }
 
-// Gửi lẻ 1 mật khẩu vừa đổi (100 HS đổi cùng lúc không đè nhau)
-async function updateSinglePassToCloud(username, newPass) {
+// Gửi lẻ 1 mật khẩu vừa đổi (Phải khớp mật khẩu cũ trên Server mới cho đổi)
+async function updateSinglePassToCloud(username, newPass, oldPass = '') {
   localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "update_single_pass", username: username, newPass: newPass })
+      body: JSON.stringify(attachAuthCredentials({ action: "update_single_pass", username: username, newPass: newPass, oldPass: oldPass }))
     });
   } catch(e) { console.error("Lỗi lưu mật khẩu lẻ:", e); }
 }
-
 // 3 Hàm bọc để vừa lưu máy cá nhân, vừa lưu lên Đám mây
 function updateViolationsLocalAndCloud() {
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
@@ -5513,7 +5595,6 @@ function renderReviewTable() {
   });
 }
 // ==================== CHỨC NĂNG HỌC SINH/GVCN KHIẾU NẠI LỖI ====================
-// ==================== CHỨC NĂNG HỌC SINH/GVCN KHIẾU NẠI LỖI ====================
 // Hàm gửi lệnh sửa lẻ 1 biên bản lên Google Drive (Tuyệt đối không ghi đè toàn bộ file)
 async function updateSingleViolationStatusOnCloud(id, status, evidence) {
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
@@ -5522,12 +5603,11 @@ async function updateSingleViolationStatusOnCloud(id, status, evidence) {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "update_single_violation", id: id, status: status, evidence: evidence })
+      body: JSON.stringify(attachAuthCredentials({ action: "update_single_violation", id: id, status: status, evidence: evidence }))
     });
   } catch (e) { console.error("Lỗi cập nhật trạng thái biên bản lẻ:", e); }
 }
 
-// Hàm gửi lệnh xóa lẻ 1 biên bản trên Google Drive
 async function deleteSingleViolationOnCloud(id) {
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
   try {
@@ -5535,7 +5615,7 @@ async function deleteSingleViolationOnCloud(id) {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "delete_single_violation", id: id })
+      body: JSON.stringify(attachAuthCredentials({ action: "delete_single_violation", id: id }))
     });
   } catch (e) { console.error("Lỗi xóa biên bản lẻ:", e); }
 }
@@ -5575,22 +5655,21 @@ function editViolationRecord(id) {
   it.classId = newClass.trim().toUpperCase();
   it.student = newStudent.trim().toUpperCase();
   it.evidence += `\n✅ [BTV đã đính chính tên từ "${oldName}" ➔ "${it.student}"]`;
-  it.status = 'Đã duyệt'; // Tự động duyệt luôn sau khi Admin đã xác minh và sửa đúng tên
+  it.status = 'Đã duyệt';
 
-  // Lưu lẻ hoặc lưu đồng bộ lên Cloud
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
   fetch(MASTER_APP_SCRIPT_URL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
+    body: JSON.stringify(attachAuthCredentials({
       action: "update_single_violation",
       id: it.id,
       classId: it.classId,
       student: it.student,
       status: it.status,
       evidence: it.evidence
-    })
+    }))
   });
 
   publishUpdate('SYNC_HISTORY_STATE', { history: weeklyHistory, violations: violations, sdb: sdbFullData });
@@ -5602,7 +5681,6 @@ function editViolationRecord(id) {
   updatePendingBadge();
   alert(`✅ Đã đổi tên thành công sang [${it.student} - Lớp ${it.classId}] và chuyển sang trạng thái Đã duyệt!`);
 }
-
 function approveViolation(id) {
   const it = violations.find(v => v.id === id);
   if (it) {
@@ -5977,12 +6055,7 @@ async function updateSingleCodoScopeOnCloud(username, scopeArr, codoLockedState)
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: "update_single_codo_scope",
-        username: username,
-        scope: scopeArr,
-        codoLocked: codoLockedState
-      })
+      body: JSON.stringify(attachAuthCredentials({ action: "update_single_codo_scope", username: username, scope: scopeArr, codoLocked: codoLockedState }))
     });
   } catch (e) {
     console.error("Lỗi lưu phân công Cờ đỏ:", e);
@@ -6298,7 +6371,7 @@ async function saveStudentsDB() {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "update_students", students: STUDENTS_DB })
+      body: JSON.stringify(attachAuthCredentials({ action: "update_students", students: STUDENTS_DB }))
     });
   } catch (error) {
     console.error("Lỗi khi ghi đè lên Google Sheet:", error);
@@ -7288,7 +7361,7 @@ async function syncDataForParents() {
       method: 'POST',
       mode: 'no-cors', 
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: "sync_phuhuynh", data: exportData })
+      body: JSON.stringify(attachAuthCredentials({ action: "sync_phuhuynh", data: exportData }))
     });
 
     alert('✅ ĐÃ ĐỒNG BỘ THÀNH CÔNG LÊN GOOGLE SHEETS!\nDữ liệu (kèm số buổi nghỉ học) đã được cập nhật cho Phụ huynh.');
@@ -7538,6 +7611,18 @@ async function importFullSystemBackup(event) {
   };
   reader.readAsText(file);
 }
+// ==================== ĐỒNG BỘ ĐA THIẾT BỊ CHO ADMIN (CHỐNG GHI ĐÈ DỮ LIỆU CŨ) ====================
+// Tự động kéo dữ liệu mới nhất từ Google Drive mỗi khi thầy mở lại tab trình duyệt hoặc bật máy tính lên
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    fetchDatabaseFromCloud();
+    if (!mqttClient || !mqttClient.connected) connectMqtt();
+  }
+});
+
+window.addEventListener('focus', () => {
+  fetchDatabaseFromCloud();
+});
 </script>
 <datalist id="studentDatalist"></datalist>
 </body>
