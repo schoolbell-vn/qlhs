@@ -5559,9 +5559,11 @@ function renderReviewTable() {
       <td style="text-align:center; white-space:nowrap;" class="no-print">
         ${(loggedUser && loggedUser.role === 'admin') ? `
           <div style="display:inline-flex; align-items:center; gap:0.3rem; background:#f8fafc; padding:0.25rem 0.4rem; border-radius:8px; border:1px solid var(--border-light);">
-            ${v.status !== 'Đã duyệt' ? `
-              <button class="btn btn-success btn-sm" style="padding:0.28rem 0.6rem; font-weight:700;" onclick="approveViolation(${v.id})" title="Phê duyệt biên bản này">✓ Duyệt</button>
-            ` : ''}
+           ${v.status !== 'Đã duyệt' ? `
+            <button class="btn btn-success btn-sm" style="padding:0.28rem 0.6rem; font-weight:700;" onclick="approveViolation(${v.id})" title="Phê duyệt biên bản này">✓ Duyệt</button>
+          ` : `
+            <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.55rem; color:#d97706; border-color:#fcd34d; background:#fffbeb; font-weight:700;" onclick="unapproveViolation(${v.id})" title="Hoàn tác về trạng thái Chờ duyệt (Tạm dừng trừ điểm)">↩️ Chờ duyệt</button>
+          `}
             <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.5rem; color:var(--primary-light); border-color:#bfdbfe; font-weight:600;" onclick="editViolationRecord(${v.id})" title="Sửa lại Họ tên học sinh hoặc Lớp">✏️ Sửa</button>
             <button class="btn btn-outline btn-sm" style="padding:0.28rem 0.45rem; color:#b45309; border-color:#fde68a; background:#fffbeb;" onclick="disputeViolation(${v.id})" title="Ghi nhận Khiếu nại">💬</button>
             ${v.status !== 'Đã hủy' ? `
@@ -5627,45 +5629,70 @@ function studentDisputeViolation(id) {
   }
 }
 
+// Hàm quay trạng thái từ Đã duyệt -> Chờ duyệt (Tự động nhả điểm trừ ra khỏi BXH ngay lập tức)
+function unapproveViolation(id) {
+  const it = violations.find(v => v.id === id);
+  if (!it) return;
+  if (!confirm(`↩️ HOÀN TÁC DUYỆT BIÊN BẢN:\n\nChuyển biên bản của [${it.student} - Lớp ${it.classId}] về lại trạng thái "Chờ duyệt"?\n(Điểm trừ của biên bản này sẽ tạm thời được gỡ khỏi Bảng xếp hạng).`)) return;
+
+  it.status = 'Chờ duyệt';
+  updateSingleViolationStatusOnCloud(it.id, 'Chờ duyệt', it.evidence);
+  publishUpdate('UPDATE_VIOLATION_STATUS', { id: it.id, status: 'Chờ duyệt', evidence: it.evidence });
+
+  renderReviewTable();
+  renderLeaderboard();
+  renderStudentSearchTable();
+  if (typeof renderAlerts === 'function') renderAlerts();
+  if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
+  if (loggedUser && loggedUser.role === 'codo') renderCodoLogsTable();
+  if (loggedUser && loggedUser.role === 'tnxk') renderTnxkLogsTable();
+  updatePendingBadge();
+}
+
+// Hàm Sửa toàn diện: Sửa Lớp + Họ tên HS + Mã lỗi (Tự động cập nhật lại tên lỗi và điểm trừ)
 function editViolationRecord(id) {
   const it = violations.find(v => v.id === id);
   if (!it) return;
 
-  const newClass = prompt(`✏️ SỬA BIÊN BẢN VI PHẠM\n\n1. Chi đoàn của học sinh (Hiện tại: ${it.classId}):`, it.classId);
+  const newClass = prompt(`✏️ SỬA BIÊN BẢN VI PHẠM (Bước 1/3)\n\nNhập Chi đoàn của học sinh (Hiện tại: ${it.classId}):`, it.classId);
   if (newClass === null) return;
 
-  const newStudent = prompt(`2. Nhập lại Họ và tên đúng của học sinh vi phạm (Hiện tại: ${it.student}):`, it.student);
+  const newStudent = prompt(`✏️ SỬA BIÊN BẢN VI PHẠM (Bước 2/3)\n\nNhập Họ và tên đúng của học sinh / tập thể (Hiện tại: ${it.student}):`, it.student);
   if (newStudent === null || !newStudent.trim()) return;
 
-  const oldName = it.student;
+  const newCode = prompt(`✏️ SỬA BIÊN BẢN VI PHẠM (Bước 3/3)\n\nNhập Mã lỗi đúng (VD: A03, A07, B02...)\nĐể nguyên [${it.code}] nếu không muốn đổi mã lỗi:`, it.code);
+  if (newCode === null) return;
+
+  const oldSummary = `${it.student} (${it.classId} - ${it.code})`;
   it.classId = newClass.trim().toUpperCase();
   it.student = newStudent.trim().toUpperCase();
-  it.evidence += `\n✅ [BTV đã đính chính tên từ "${oldName}" ➔ "${it.student}"]`;
-  it.status = 'Đã duyệt';
 
-  localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
-  fetch(MASTER_APP_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(attachAuthCredentials({
-      action: "update_single_violation",
-      id: it.id,
-      classId: it.classId,
-      student: it.student,
-      status: it.status,
-      evidence: it.evidence
-    }))
-  });
+  // Nếu Admin đổi sang mã lỗi khác có trong danh mục RULES -> Tự động đổi Tên lỗi và tính lại Điểm trừ
+  const cleanCode = newCode.trim().toUpperCase();
+  if (cleanCode && cleanCode !== it.code) {
+    const matchedRule = RULES.find(r => r.code.toUpperCase() === cleanCode);
+    if (matchedRule) {
+      it.code = matchedRule.code;
+      it.name = matchedRule.name;
+      it.points = matchedRule.point * (it.mult || 1);
+    } else {
+      alert(`⚠️ Không tìm thấy mã [${cleanCode}] trong cấu hình tiêu chí, hệ thống giữ nguyên mã lỗi cũ [${it.code}].`);
+    }
+  }
 
+  it.evidence += `\n✅ [BTV đã đính chính từ "${oldSummary}" ➔ "${it.student} (${it.classId} - ${it.code})"]`;
+
+  // Lưu toàn bộ thay đổi lên Cloud và đồng bộ MQTT
+  updateViolationsLocalAndCloud();
   publishUpdate('SYNC_HISTORY_STATE', { history: weeklyHistory, violations: violations, sdb: sdbFullData });
 
   renderReviewTable();
   renderLeaderboard();
   renderStudentSearchTable();
+  if (typeof renderAlerts === 'function') renderAlerts();
   if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
   updatePendingBadge();
-  alert(`✅ Đã đổi tên thành công sang [${it.student} - Lớp ${it.classId}] và chuyển sang trạng thái Đã duyệt!`);
+  alert(`✅ Đã cập nhật biên bản thành công:\n- Học sinh: ${it.student} (Lớp ${it.classId})\n- Lỗi: [${it.code}] ${it.name} (${it.points}đ)`);
 }
 function approveViolation(id) {
   const it = violations.find(v => v.id === id);
@@ -6474,61 +6501,80 @@ function changeAdminSdbClass(newClassId) {
   setupSdbForm();
 }
 // ================= TÍNH NĂNG 1: BÁO ĐỘNG ĐỎ =================
+// ================= TÍNH NĂNG 1: BÁO ĐỘNG ĐỎ (ĐỒNG BỘ CHUẨN CẢ HỌC SINH & CHI ĐOÀN) =================
 function renderAlerts() {
   const tbodyStudent = document.getElementById('alertStudentsBody');
   const tbodyClass = document.getElementById('alertClassesBody');
-  if(!tbodyStudent || !tbodyClass) return;
-  tbodyStudent.innerHTML = ''; tbodyClass.innerHTML = '';
+  if (!tbodyStudent || !tbodyClass) return;
+  tbodyStudent.innerHTML = ''; 
+  tbodyClass.innerHTML = '';
 
   const map = {};
-  // Lọc học sinh vi phạm tuần này
+  // 1. Lọc học sinh vi phạm chưa chốt sổ
   violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && !v.isArchived).forEach(v => {
-     const key = `${v.classId}_${v.student}`;
-     if (!map[key]) map[key] = { classId: v.classId, name: v.student, minus: 0, count: 0, details: [] };
-     if (v.points < 0) {
-         map[key].minus += Math.abs(v.points); map[key].count++; map[key].details.push(v.name);
-     }
+    const key = `${v.classId}_${v.student}`;
+    if (!map[key]) map[key] = { classId: v.classId, name: v.student, minus: 0, count: 0, details: [] };
+    if (v.points < 0) {
+      map[key].minus += Math.abs(v.points);
+      map[key].count++;
+      map[key].details.push(`${v.name} (${v.points}đ)`);
+    }
   });
-  // Lọc nghỉ học
+
+  // 2. Lọc nghỉ học không phép trong Sổ đầu bài
   Object.keys(sdbFullData).forEach(cid => {
     (sdbFullData[cid].absences || []).filter(a => !a.isArchived).forEach(a => {
-       const key = `${cid}_${a.student}`;
-       if (!map[key]) map[key] = { classId: cid, name: a.student, minus: 0, count: 0, details: [] };
-       if (a.type === 'A02') { // Nghỉ không phép
-           map[key].minus += 10; map[key].count++; map[key].details.push('Nghỉ không phép');
-       }
+      const key = `${cid}_${a.student}`;
+      if (!map[key]) map[key] = { classId: cid, name: a.student, minus: 0, count: 0, details: [] };
+      if (a.type === 'A02') {
+        map[key].minus += 10;
+        map[key].count++;
+        map[key].details.push('Nghỉ không phép (-10đ)');
+      }
     });
   });
 
   let hasStudentAlert = false;
   Object.values(map).forEach(s => {
-     if (s.minus >= 30 || s.count >= 3) {
-         hasStudentAlert = true;
-         tbodyStudent.innerHTML += `<tr>
-            <td><strong>Chi đoàn ${s.classId}</strong></td>
-            <td style="color:var(--danger); font-weight:bold;">${s.name}</td>
-            <td style="text-align:center; font-weight:bold;">${s.count} lỗi</td>
-            <td style="color:var(--danger); font-weight:bold;">-${s.minus}đ</td>
-            <td style="font-size:0.8rem;">${s.details.join(', ')}</td>
-         </tr>`;
-     }
+    if (s.minus >= 30 || s.count >= 3) {
+      hasStudentAlert = true;
+      tbodyStudent.innerHTML += `<tr>
+        <td><strong>Chi đoàn ${s.classId}</strong></td>
+        <td style="color:var(--danger); font-weight:bold;">${s.name}</td>
+        <td style="text-align:center; font-weight:bold;">${s.count} lỗi</td>
+        <td style="text-align:center; color:var(--danger); font-weight:bold;">-${s.minus}đ</td>
+        <td style="font-size:0.8rem;">${s.details.join(', ')}</td>
+      </tr>`;
+    }
   });
-  if(!hasStudentAlert) tbodyStudent.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tuần này chưa có học sinh nào bị báo động đỏ. Tuyệt vời! 🎉</td></tr>';
+  if (!hasStudentAlert) {
+    tbodyStudent.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tuần này chưa có học sinh nào bị báo động đỏ. Tuyệt vời! 🎉</td></tr>';
+  }
 
-  // Lọc Lớp
-  const classes = calculateClassScores();
+  // 3. Lọc Chi đoàn ở ngưỡng nguy hiểm (Đồng bộ cùng tập dữ liệu chưa chốt !isArchived với bảng Học sinh ở trên)
+  // Cảnh báo ngay khi: Điểm trừ sau bù >= 35đ, HOẶC Tổng điểm bị trừ gốc >= 50đ (tránh bị điểm cộng SĐB che mất lỗi nặng), HOẶC xếp loại Đạt / Chưa đạt
+  const activeClassScores = sortClassScoreList(
+    CLASSES.map(c => computeClassScoreItem(c, null, null, sdbFullData))
+  );
+
   let hasClassAlert = false;
-  classes.forEach(c => {
-     if (c.remainingPenalty >= 50 || c.rankLabel === 'Chưa đạt') {
-         hasClassAlert = true;
-         tbodyClass.innerHTML += `<tr>
-            <td style="color:var(--danger); font-weight:bold;">Chi đoàn ${c.id}</td>
-            <td style="text-align:center; font-weight:bold; color:var(--danger);">-${c.remainingPenalty}đ</td>
-            <td style="text-align:center;"><span class="badge badge-danger">${c.rankLabel}</span></td>
-         </tr>`;
-     }
+  activeClassScores.forEach(c => {
+    if (c.remainingPenalty >= 35 || c.totalDeductions >= 50 || c.rankLabel === 'Đạt' || c.rankLabel === 'Chưa đạt') {
+      hasClassAlert = true;
+      const penDisplay = c.remainingPenalty !== c.totalDeductions
+        ? `-${c.remainingPenalty}đ <span style="font-size:0.78rem; color:var(--text-muted); font-weight:normal;">(Tổng trừ gốc: -${c.totalDeductions}đ, Cộng bù: +${c.totalAdditions}đ)</span>`
+        : `-${c.remainingPenalty}đ`;
+
+      tbodyClass.innerHTML += `<tr>
+        <td style="color:var(--danger); font-weight:bold;">Chi đoàn ${c.id}</td>
+        <td style="text-align:center; font-weight:bold; color:var(--danger);">${penDisplay}</td>
+        <td style="text-align:center;"><span class="badge ${c.bClass}">${c.rankLabel}</span></td>
+      </tr>`;
+    }
   });
-  if(!hasClassAlert) tbodyClass.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tuần này không có chi đoàn nào bị báo động đỏ. 🎉</td></tr>';
+  if (!hasClassAlert) {
+    tbodyClass.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tuần này không có chi đoàn nào bị báo động đỏ. 🎉</td></tr>';
+  }
 }
 
 // ================= TÍNH NĂNG 2: CHỐT THI ĐUA TUẦN, THÁNG & NĂM HỌC =================
