@@ -7470,8 +7470,9 @@ async function handleSelfPasswordChange(e) {
   const newPass = document.getElementById('cpNewPass').value.trim();
   const confirmPass = document.getElementById('cpConfirmPass').value.trim();
 
+  // Ưu tiên lấy mật khẩu thật của phiên vừa đăng nhập (loggedUser.pass) vì userRecord.pass đã bị làm rỗng để chống F12
   const userRecord = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
-  const currentActualPass = userRecord ? userRecord.pass : loggedUser.pass;
+  const currentActualPass = (loggedUser && loggedUser.pass) ? loggedUser.pass : (userRecord ? userRecord.pass : '');
 
   if (oldPass !== currentActualPass) {
     alert('❌ Mật khẩu hiện tại không chính xác!');
@@ -7500,18 +7501,10 @@ async function handleSelfPasswordChange(e) {
   btn.disabled = true;
 
   try {
-    // 1. Tải danh sách tài khoản mới nhất từ Cloud về trước để không ghi đè mất mật khẩu của bạn khác vừa đổi
-    try {
-      const res = await fetch(MASTER_APP_SCRIPT_URL + "?t=" + Date.now(), { redirect: "follow" });
-      const db = await res.json();
-      if (db && db.users && Array.isArray(db.users) && db.users.length > 1) {
-        systemUsers = db.users;
-      }
-    } catch (fetchErr) {
-      console.warn("Không lấy được bản mới nhất từ Cloud, dùng bản local:", fetchErr);
-    }
+    // 1. Gửi lệnh đổi mật khẩu lên Google Drive TRƯỚC (kèm theo oldPass để Server xác thực chuẩn xác)
+    await updateSinglePassToCloud(loggedUser.username, newPass, oldPass);
 
-    // 2. Cập nhật đúng mật khẩu của tài khoản đang đăng nhập
+    // 2. Sau khi gửi xong mới cập nhật mật khẩu mới vào phiên đăng nhập hiện tại
     const latestUserRecord = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
     if (latestUserRecord) {
       latestUserRecord.pass = newPass;
@@ -7521,11 +7514,9 @@ async function handleSelfPasswordChange(e) {
     loggedUser.pass = newPass;
     loggedUser.mustChangePass = false;
     sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
-
-    // 3. Lưu lên Google Drive và bắn MQTT tức thời sang máy Admin
     localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-    await updateSinglePassToCloud(loggedUser.username, newPass);
 
+    // 3. Bắn tín hiệu MQTT sang máy Admin
     publishUpdate('UPDATE_USER_PASS', {
       username: loggedUser.username,
       newPass: newPass
