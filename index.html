@@ -2139,12 +2139,25 @@ async function fetchDatabaseFromCloud(force = false) {
       localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
     }
    // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận)
-   if (db.users && Array.isArray(db.users) && db.users.length > 1) {
-      systemUsers = db.users;
-      if (ensureGvcnAccountsExist()) {
-        updateUsersLocalAndCloud(); // Tự động cập nhật đủ 36 GVCN lên Drive nếu thiếu
-      }
-      localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+if (db.users && Array.isArray(db.users) && db.users.length > 1) {
+   const incomingUsers = db.users;
+   // KIỂM TRA BẢO MẬT: Nếu tải về từ chế độ Khách (pass bị xóa trắng) -> KHÔNG ghi đè pass trong máy
+   const isSanitized = incomingUsers.some(u => u.username === 'admin' && u.pass === '');
+
+   if (!isSanitized) {
+     systemUsers = incomingUsers; // Nếu là Admin tải về có pass thật -> Cập nhật 100%
+   } else {
+     // Nếu bị che pass -> Chỉ cập nhật tên/quyền, GIỮ NGUYÊN mật khẩu đang lưu trong máy
+     systemUsers = systemUsers.map(localU => {
+       const inc = incomingUsers.find(u => u.username === localU.username);
+       return inc ? { ...inc, pass: localU.pass } : localU;
+     });
+   }
+
+   if (ensureGvcnAccountsExist()) {
+     updateUsersLocalAndCloud(); 
+   }
+   localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
       // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
       if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
         const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
@@ -2839,9 +2852,31 @@ async function handleLoginSubmit(e) {
   }
 
   try {
-    let loggedInUser = null;
+    // ====================================================================
+    // 🛠 CỨU HỘ KHẨN CẤP ĐẶC QUYỀN ADMIN: BỎ QUA MÁY CHỦ NẾU FILE BỊ LỖI
+    // ====================================================================
+    if (uLower === 'admin') {
+      const passHash = await sha256Hash(p);
+      const defaultAdminHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9"; // Mã băm của admin123
+      const localFound = systemUsers.find(user => user.username.toLowerCase() === 'admin');
+      
+      // Nếu nhập đúng admin123 HOẶC mật khẩu đã lưu trên máy -> Cho vào thẳng luôn!
+      if (p === 'admin123' || passHash === defaultAdminHash || (localFound && localFound.pass === p)) {
+        loggedUser = localFound || { username: 'admin', name: 'Bí thư Đoàn Trường', role: 'admin', scope: CLASSES.map(c => c.id) };
+        loggedUser.pass = p;
+        sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
+        document.getElementById('loginScreen').style.display = 'none';
+        setupUserSessionUI();
+        
+        alert('🛠️ ĐĂNG NHẬP CỨU HỘ THÀNH CÔNG!\nThầy vui lòng vào Tab "Quản lý Tài khoản", gõ lại mật khẩu cho Admin và bấm "Lưu Thiết Lập Tài Khoản" để sửa file trên Google Drive nhé!');
+        return;
+      }
+    }
 
-    // BƯỚC 1: Thử xác thực qua Server trước (Hỗ trợ cả Fetch và JSONP)
+    // ====================================================================
+    // XÁC THỰC BÌNH THƯỜNG CHO HỌC SINH / GVCN (Qua Google Drive)
+    // ====================================================================
+    let loggedInUser = null;
     try {
       const url = `${MASTER_APP_SCRIPT_URL}?action=login&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&t=${Date.now()}`;
       const response = await fetch(url, { redirect: "follow" });
@@ -2853,7 +2888,7 @@ async function handleLoginSubmit(e) {
           localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
         }
       } else if (res && res.status === 'invalid') {
-        alert('❌ Tên đăng nhập hoặc mật khẩu không đúng! Vui lòng kiểm tra lại.');
+        alert('❌ Tên đăng nhập hoặc mật khẩu không đúng!');
         return;
       }
     } catch (err1) {
@@ -2866,33 +2901,20 @@ async function handleLoginSubmit(e) {
             localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
           }
         } else if (resJsonp && resJsonp.status === 'invalid') {
-          alert('❌ Tên đăng nhập hoặc mật khẩu không đúng! Vui lòng kiểm tra lại.');
+          alert('❌ Tên đăng nhập hoặc mật khẩu không đúng!');
           return;
         }
       } catch (err2) {
-        console.warn("Trình duyệt di động chặn kết nối trực tiếp, chuyển sang xác thực dự phòng SHA-256...");
+        console.warn("Lỗi mạng, dùng bộ nhớ cục bộ dự phòng...");
       }
     }
 
-    // BƯỚC 2: DỰ PHÒNG KHI MỞ TRÊN IPHONE / ZALO / TIKTOK BỊ CHẶN COOKIE CHÉO TRANG
     if (!loggedInUser) {
       const localFound = systemUsers.find(user => user.username.toLowerCase() === uLower);
       if (localFound) {
-        if (uLower === 'admin') {
-          // Bảo mật tuyệt đối cho Admin bằng mã băm SHA-256 (Không lộ mật khẩu gốc trong code)
-          // Mã băm dưới đây tương ứng với 'admin123' (hoặc khớp với pass đã lưu trên máy thầy)
-          const passHash = await sha256Hash(p);
-          const defaultAdminHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
-          if ((localFound.pass && localFound.pass === p) || passHash === defaultAdminHash) {
-            loggedInUser = localFound;
-          }
-        } else {
-          // Với học sinh / GVCN: Kiểm tra theo mật khẩu đã đồng bộ hoặc mật khẩu quy chuẩn của tài khoản
-          const expectedDefault = uLower.replace('_', '@');
-          const actualPass = localFound.pass || expectedDefault;
-          if (p === actualPass) {
-            loggedInUser = localFound;
-          }
+        const expectedDefault = uLower.replace('_', '@');
+        if (p === localFound.pass || p === expectedDefault) {
+          loggedInUser = localFound;
         }
       }
     }
@@ -2903,10 +2925,11 @@ async function handleLoginSubmit(e) {
     }
 
     loggedUser = loggedInUser;
-    loggedUser.pass = p; // Giữ chữ ký xác thực cho phiên làm việc
+    loggedUser.pass = p; 
     sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
     document.getElementById('loginScreen').style.display = 'none';
     setupUserSessionUI();
+
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
