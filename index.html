@@ -697,9 +697,14 @@
               <span id="codoClassLockNotice" style="font-size:0.75rem; color:#dc2626;">Hệ thống khóa: Bạn chỉ được ghi nhận lỗi cho lớp được phân công chấm!</span>
             </div>
             <div class="form-group">
-              <label>Họ và tên học sinh vi phạm (*):</label>
-              <input type="text" id="codoStudentInput" list="studentDatalist" placeholder="Nhập rõ họ tên học sinh..." required>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label>Họ tên HS hoặc Tập thể (*):</label>
+              <button type="button" onclick="fillCollectiveClass('codo')" style="background:#eff6ff; color:var(--primary-light); border:1px solid #bfdbfe; border-radius:4px; padding:1px 6px; font-size:0.72rem; font-weight:700; cursor:pointer;" title="Bấm để điền nhanh lỗi cho Tập thể lớp đang chọn">
+                👥 Ghi Tập thể lớp
+              </button>
             </div>
+            <input type="text" id="codoStudentInput" list="studentDatalist" placeholder="Nhập tên HS hoặc bấm nút Tập thể lớp..." required>
+          </div>
             <div class="form-group full-width">
               <label>Hành vi vi phạm nề nếp / tác phong (*):</label>
               <select id="codoRuleSelect" onchange="onCodoRuleChange()" required>
@@ -4894,12 +4899,56 @@ async function adminSetCodoByWeek(weekNum) {
   publishUpdate('UPDATE_ALL_USERS', systemUsers);
 }
 
+// Hàm điền nhanh chữ "Tập thể [Lớp]" khi bấm nút hoặc khi chọn lỗi tập thể
+function fillCollectiveClass(mode = 'codo') {
+  const classSel = document.getElementById(mode === 'codo' ? 'codoClassSelect' : 'tnxkClassSelect');
+  const studentInp = document.getElementById(mode === 'codo' ? 'codoStudentInput' : 'tnxkStudentInput');
+  if (classSel && studentInp && classSel.value) {
+    studentInp.value = `Tập thể ${classSel.value}`;
+  }
+}
+
+// Hàm kiểm tra xem tên nhập vào có phải là Tập thể lớp hay không (để không tính nhầm vào cá nhân)
+function isCollectiveRecord(studentName) {
+  const s = String(studentName || '').trim().toLowerCase();
+  return (
+    s.startsWith('tập thể') ||
+    s.startsWith('tap the') ||
+    s.startsWith('lớp ') ||
+    s.startsWith('lop ') ||
+    s.startsWith('cả lớp') ||
+    s.startsWith('chi đoàn')
+  );
+}
+
 function onCodoRuleChange() {
   const code = document.getElementById('codoRuleSelect').value;
   const r = RULES.find(rule => rule.code === code);
   if (r) {
     document.getElementById('codoBasePointDisplay').value = (r.point > 0 ? '+' : '') + r.point + ' điểm';
     calcCodoPoints();
+
+    // Tự động nhận diện các lỗi Tập thể (Điện/quạt/điều hòa, vệ sinh, trực nhật, xếp hàng, thiếu ghế...)
+    const ruleNameLower = r.name.toLowerCase();
+    const isCollectiveRule = (
+      ruleNameLower.includes('điện') ||
+      ruleNameLower.includes('quạt') ||
+      ruleNameLower.includes('điều hòa') ||
+      ruleNameLower.includes('vệ sinh') ||
+      ruleNameLower.includes('trực nhật') ||
+      ruleNameLower.includes('bồn cây') ||
+      ruleNameLower.includes('thiếu ghế') ||
+      ruleNameLower.includes('xếp hàng') ||
+      ruleNameLower.includes('tập trung')
+    );
+
+    const studentInp = document.getElementById('codoStudentInput');
+    if (isCollectiveRule) {
+      fillCollectiveClass('codo');
+    } else if (studentInp && isCollectiveRecord(studentInp.value)) {
+      // Nếu đổi từ lỗi Tập thể sang lỗi Cá nhân (như đi học muộn) thì xóa chữ "Tập thể..." đi để nhập tên HS
+      studentInp.value = '';
+    }
   } else {
     document.getElementById('codoBasePointDisplay').value = '';
     document.getElementById('codoFinalPointInput').value = '';
@@ -5831,7 +5880,7 @@ function renderStudentSearchTable() {
   const map = {};
 
   violations.filter(v => {
-    if (v.status !== 'Đã duyệt' || v.isClassBonus) return false;
+    if (v.status !== 'Đã duyệt' || v.isClassBonus || isCollectiveRecord(v.student)) return false;
     if (!fromDate && !toDate && v.isArchived) return false; 
     if (fromDate && v.date < fromDate) return false;
     if (toDate && v.date > toDate) return false;
@@ -6561,7 +6610,7 @@ function renderAlerts() {
 
   const map = {};
   // 1. Lọc học sinh vi phạm chưa chốt sổ
-  violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && !v.isArchived).forEach(v => {
+  violations.filter(v => v.status === 'Đã duyệt' && !v.isClassBonus && !v.isArchived && !isCollectiveRecord(v.student)).forEach(v => {
     const key = `${v.classId}_${v.student}`;
     if (!map[key]) map[key] = { classId: v.classId, name: v.student, minus: 0, count: 0, details: [] };
     if (v.points < 0) {
@@ -6773,6 +6822,37 @@ function calculateClassScoresForWeekRange(fromDate, toDate) {
   return sortClassScoreList(CLASSES.map(c => computeClassScoreItem(c, fromDate, toDate, sdbFullData)));
 }
 
+// ================= QUẢN LÝ BẢNG TỔNG HỢP THÁNG + ĐỢT THI ĐUA 20/11 & 26/3 =================
+let selectedMonthViewKey = 'SUMMARY_HK1'; // 'SUMMARY_HK1' | 'SUMMARY_HK2' | 'SUMMARY_YEAR' | 'DETAIL_0'...
+
+function getSpecialEventRanks() {
+  if (typeof TABS_CONFIG !== 'undefined' && TABS_CONFIG.specialEventRanks) {
+    return TABS_CONFIG.specialEventRanks;
+  }
+  return JSON.parse(localStorage.getItem('yka_special_ranks_v1')) || { hk1_20_11: {}, hk2_26_3: {} };
+}
+
+function getMonthOrderNumber(monthTitle) {
+  const m = String(monthTitle || '').match(/\d+/);
+  return m ? parseInt(m[0], 10) : 0;
+}
+
+function isMonthInSemester(monthTitle, term) {
+  const mNum = getMonthOrderNumber(monthTitle);
+  if (term === 'SUMMARY_HK1') return mNum >= 8 && mNum <= 12;
+  if (term === 'SUMMARY_HK2') return mNum >= 1 && mNum <= 7;
+  return true; // SUMMARY_YEAR
+}
+
+function sortMonthsChronologically(monthList) {
+  const orderWeight = { 8: 1, 9: 2, 10: 3, 11: 4, 12: 5, 1: 6, 2: 7, 3: 8, 4: 9, 5: 10, 6: 11, 7: 12 };
+  return [...monthList].sort((a, b) => {
+    const wa = orderWeight[getMonthOrderNumber(a.week)] || 99;
+    const wb = orderWeight[getMonthOrderNumber(b.week)] || 99;
+    return wa - wb;
+  });
+}
+
 function renderHistoryTable() {
   populateWeekFinalizeDropdown();
   const container = document.getElementById('historyContainer');
@@ -6783,16 +6863,13 @@ function renderHistoryTable() {
   const monthList = getFilteredHistoryList('MONTH');
   const yearList = getFilteredHistoryList('YEAR');
 
-  const activeList = currentHistoryMode === 'WEEK' ? weekList : (currentHistoryMode === 'MONTH' ? monthList : yearList);
-  if (selectedHistoryIndex >= activeList.length) selectedHistoryIndex = 0;
-
   let modeTabsHtml = `
     <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:2px solid var(--border-light); padding-bottom:0.75rem; flex-wrap:wrap;">
       <button type="button" class="btn btn-sm ${currentHistoryMode === 'WEEK' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('WEEK')" style="padding:0.5rem 1rem;">
         📅 Lịch Sử Từng Tuần (${weekList.length})
       </button>
       <button type="button" class="btn btn-sm ${currentHistoryMode === 'MONTH' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('MONTH')" style="padding:0.5rem 1rem;">
-        📆 Xếp Hạng Tháng (${monthList.length})
+        📆 Xếp Hạng Tháng & Đợt 20/11 - 26/3 (${monthList.length} tháng)
       </button>
       <button type="button" class="btn btn-sm ${currentHistoryMode === 'YEAR' ? 'btn-primary' : 'btn-outline'}" onclick="switchHistoryMode('YEAR')" style="padding:0.5rem 1rem;">
         🎓 Xếp Hạng Học Kỳ & Năm (${yearList.length})
@@ -6800,7 +6877,16 @@ function renderHistoryTable() {
     </div>
   `;
 
-  const modeLabel = currentHistoryMode === 'WEEK' ? 'tuần' : (currentHistoryMode === 'MONTH' ? 'tháng' : 'học kỳ / năm học');
+  // NẾU ĐANG MỞ THẺ "XẾP HẠNG THÁNG": HIỂN THỊ BẢNG TỔNG HỢP THỨ TỰ THÁNG + 20/11 & 26/3
+  if (currentHistoryMode === 'MONTH') {
+    renderMonthlyHistoryMode(container, modeTabsHtml, monthList);
+    return;
+  }
+
+  const activeList = currentHistoryMode === 'WEEK' ? weekList : yearList;
+  if (selectedHistoryIndex >= activeList.length) selectedHistoryIndex = 0;
+
+  const modeLabel = currentHistoryMode === 'WEEK' ? 'tuần' : 'học kỳ / năm học';
 
   if (activeList.length === 0) {
     container.innerHTML = modeTabsHtml + `<p style="text-align:center; padding: 2rem; color:var(--text-muted);">Chưa có dữ liệu ${modeLabel} nào được chốt.</p>`;
@@ -6808,8 +6894,7 @@ function renderHistoryTable() {
   }
 
   const currentObj = activeList[selectedHistoryIndex];
-  const originalIndex = currentObj.origIdx;
-  const icon = currentHistoryMode === 'WEEK' ? '📅' : (currentHistoryMode === 'MONTH' ? '📆' : '🎓');
+  const icon = currentHistoryMode === 'WEEK' ? '📅' : '🎓';
 
   let optionsHtml = activeList.map((h, idx) => 
     `<option value="${idx}" ${idx === selectedHistoryIndex ? 'selected' : ''}>${icon} ${h.week} (Ngày bấm chốt: ${h.date})</option>`
@@ -6869,6 +6954,412 @@ function renderHistoryTable() {
   filterHistoryRows();
 }
 
+function changeMonthViewKey(val) {
+  selectedMonthViewKey = val;
+  if (val.startsWith('DETAIL_')) {
+    selectedHistoryIndex = parseInt(val.replace('DETAIL_', ''), 10) || 0;
+  }
+  renderHistoryTable();
+}
+
+function renderMonthlyHistoryMode(container, modeTabsHtml, monthList) {
+  const isAdminUser = (loggedUser && loggedUser.role === 'admin');
+  let detailOptions = monthList.map((h, idx) => 
+    `<option value="DETAIL_${idx}" ${selectedMonthViewKey === 'DETAIL_' + idx ? 'selected' : ''}>📆 Xem chi tiết riêng: ${h.week} (Chốt: ${h.date})</option>`
+  ).join('');
+
+  const topToolbarHtml = `
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; background:#f8fafc; padding:1rem; border-radius:10px; border:1px solid var(--border); margin-bottom:1rem;">
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; flex:1;">
+        <label style="font-weight:700; color:var(--primary); white-space:nowrap;">Chế độ xem:</label>
+        <select id="monthViewSelect" onchange="changeMonthViewKey(this.value)" style="font-weight:700; color:var(--primary); min-width:280px; border:2px solid var(--primary-light); background:#eff6ff;">
+          <option value="SUMMARY_HK1" ${selectedMonthViewKey === 'SUMMARY_HK1' ? 'selected' : ''}>🏆 TỔNG HỢP THÁNG HỌC KỲ I (Các tháng HK1 + Thi đua 20/11)</option>
+          <option value="SUMMARY_HK2" ${selectedMonthViewKey === 'SUMMARY_HK2' ? 'selected' : ''}>🏆 TỔNG HỢP THÁNG HỌC KỲ II (Các tháng HK2 + Hội trại 26/3)</option>
+          <option value="SUMMARY_YEAR" ${selectedMonthViewKey === 'SUMMARY_YEAR' ? 'selected' : ''}>🏆 TỔNG HỢP THÁNG CẢ NĂM (Các tháng + 20/11 + 26/3)</option>
+          ${detailOptions ? `<optgroup label="─── XEM CHI TIẾT TỪNG THÁNG ĐÃ CHỐT ───">${detailOptions}</optgroup>` : ''}
+        </select>
+
+        <select id="historyGradeFilter" onchange="filterMonthlyViewRows()" style="font-size:0.85rem;">
+          <option value="ALL">Tất cả (36 Chi đoàn)</option>
+          <option value="10">Khối 10</option>
+          <option value="11">Khối 11</option>
+          <option value="12">Khối 12</option>
+        </select>
+
+        <input type="text" id="historyClassSearch" onkeyup="filterMonthlyViewRows()" placeholder="🔍 Tìm nhanh lớp (VD: 10A1)..." style="width:180px; font-size:0.85rem;">
+      </div>
+
+      <div class="no-print" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        ${isAdminUser && selectedMonthViewKey.startsWith('SUMMARY_') ? `
+          <button type="button" class="btn btn-primary btn-sm" id="btnSaveSpecialRanks" onclick="saveSpecialEventRanks()" style="font-weight:700;">
+            💾 Lưu Thứ Tự & Sắp Xếp Hạng
+          </button>
+        ` : ''}
+        <button type="button" class="btn btn-success btn-sm" onclick="exportMonthlyViewCSV()">📥 Xuất Excel</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨️ In báo cáo</button>
+      </div>
+    </div>
+  `;
+
+  // Trường hợp 1: Đang chọn xem chi tiết 1 tháng đơn lẻ
+  if (selectedMonthViewKey.startsWith('DETAIL_')) {
+    const idx = parseInt(selectedMonthViewKey.replace('DETAIL_', ''), 10) || 0;
+    const currentObj = monthList[idx];
+    if (!currentObj) {
+      selectedMonthViewKey = 'SUMMARY_HK1';
+      renderHistoryTable();
+      return;
+    }
+
+    container.innerHTML = modeTabsHtml + topToolbarHtml + `
+      <div style="border:1px solid var(--border-light); border-radius:10px; overflow:hidden; background:white;">
+        <div style="background:var(--primary-subtle); padding:0.75rem 1rem; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <h3 style="color:var(--primary); font-size:1rem; font-weight:800;">📆 CHI TIẾT THI ĐUA: ${currentObj.week.toUpperCase()}</h3>
+            ${currentObj.subTitle ? `<div style="font-size:0.8rem; color:#1e40af; margin-top:2px;">📌 Thời gian tính điểm: <strong>${currentObj.subTitle}</strong></div>` : ''}
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Ngày bấm chốt: ${currentObj.date}</span>
+            ${isAdminUser ? `<button type="button" class="btn btn-danger btn-sm no-print" onclick="deleteHistoryWeek(${currentObj.origIdx})">🗑️ Xóa bảng tháng này</button>` : ''}
+          </div>
+        </div>
+        <div class="table-responsive" style="border:none; border-radius:0;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:60px; text-align:center;">Thứ tự</th>
+                <th>Chi đoàn</th>
+                <th style="text-align:center;">Khối</th>
+                <th style="text-align:center;">Sĩ số</th>
+                <th style="text-align:center;">Thống kê số tuần (XS / Tốt / Khá / Đạt / C.Đạt)</th>
+                <th style="text-align:center;">Tổng điểm trừ tích lũy</th>
+                <th style="text-align:center;">Xếp loại Tháng</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    filterHistoryRows();
+    return;
+  }
+
+  // Trường hợp 2: BẢNG TỔNG HỢP THỨ TỰ CÁC THÁNG + ĐỢT THI ĐUA 20/11 & HỘI TRẠI 26/3
+  const targetMonths = sortMonthsChronologically(
+    monthList.filter(m => isMonthInSemester(m.week, selectedMonthViewKey))
+  );
+
+  const show20_11 = (selectedMonthViewKey === 'SUMMARY_HK1' || selectedMonthViewKey === 'SUMMARY_YEAR');
+  const show26_3  = (selectedMonthViewKey === 'SUMMARY_HK2' || selectedMonthViewKey === 'SUMMARY_YEAR');
+
+  const termTitle = selectedMonthViewKey === 'SUMMARY_HK1'
+    ? 'HỌC KỲ I (CÁC THÁNG HK1 + THI ĐUA 20/11)'
+    : (selectedMonthViewKey === 'SUMMARY_HK2' ? 'HỌC KỲ II (CÁC THÁNG HK2 + HỘI TRẠI 26/3)' : 'CẢ NĂM HỌC (CÁC THÁNG + 20/11 + 26/3)');
+
+  let monthHeadersHtml = targetMonths.map(m => 
+    `<th style="text-align:center; background:#f1f5f9; color:var(--primary);">Thứ tự<br>${m.week}</th>`
+  ).join('');
+
+  if (targetMonths.length === 0) {
+    monthHeadersHtml = `<th style="text-align:center; color:var(--text-muted); font-style:italic;">(Chưa chốt tháng nào)</th>`;
+  }
+
+  container.innerHTML = modeTabsHtml + topToolbarHtml + `
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.84rem; color:#166534; line-height:1.5;">
+      <strong>📌 Quy tắc tính điểm Thi đua Tháng & Chuyên đề (${termTitle}):</strong><br>
+      • Đợt <strong>Thi đua 20/11</strong> (Học kỳ I) và <strong>Hội trại 26/3</strong> (Học kỳ II) mỗi đợt được tính bằng <strong>1 tháng thi đua</strong>.<br>
+      • <strong>Tổng thứ tự</strong> = Tổng thứ hạng của các tháng đã chốt trong kỳ cộng với thứ hạng đợt thi đua chuyên đề. <strong>Lớp nào có Tổng thứ tự NHỎ NHẤT sẽ xếp Thứ Nhất (Hạng 1)</strong>!
+      ${isAdminUser ? `<br>• <em>Hướng dẫn Admin:</em> Thầy nhập thứ tự (1, 2, 3...) vào cột chuyên đề, sau đó bấm nút <strong>"💾 Lưu Thứ Tự & Sắp Xếp Hạng"</strong> ở góc phải để hệ thống xếp hạng và lưu lên Đám mây.` : ''}
+    </div>
+
+    <div style="border:1px solid var(--border-light); border-radius:10px; overflow:hidden; background:white;">
+      <div style="background:var(--primary-subtle); padding:0.75rem 1rem; border-bottom:1px solid #bfdbfe; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+        <h3 style="color:var(--primary); font-size:1rem; font-weight:800;">🏆 BẢNG TỔNG HỢP THỨ TỰ THI ĐUA THÁNG — ${termTitle}</h3>
+        <span class="badge badge-info">Tổng số cột tính: ${targetMonths.length + (show20_11 ? 1 : 0) + (show26_3 ? 1 : 0)} đợt/tháng</span>
+      </div>
+      <div class="table-responsive" style="border:none; border-radius:0;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:65px; text-align:center;">Hạng</th>
+              <th>Chi đoàn</th>
+              <th style="text-align:center;">Khối</th>
+              ${monthHeadersHtml}
+              ${show20_11 ? `<th style="text-align:center; background:#fffbeb; color:#b45309; min-width:135px;">🌸 Thi đua 20/11<br><span style="font-size:0.72rem; font-weight:normal;">(Thứ tự)</span></th>` : ''}
+              ${show26_3 ? `<th style="text-align:center; background:#f0fdf4; color:#15803d; min-width:135px;">🏕️ Hội trại 26/3<br><span style="font-size:0.72rem; font-weight:normal;">(Thứ tự)</span></th>` : ''}
+              <th style="text-align:center; background:#eff6ff; color:#1e3a8a; font-weight:800;">TỔNG THỨ TỰ<br><span style="font-size:0.7rem; font-weight:normal;">(Nhỏ nhất = Hạng 1)</span></th>
+              <th style="text-align:center;">Xếp Hạng Kỳ</th>
+            </tr>
+          </thead>
+          <tbody id="monthlySummaryTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  filterMonthlyViewRows();
+}
+
+function computeMonthlySummaryRows() {
+  const monthList = getFilteredHistoryList('MONTH');
+  const targetMonths = sortMonthsChronologically(
+    monthList.filter(m => isMonthInSemester(m.week, selectedMonthViewKey))
+  );
+
+  const show20_11 = (selectedMonthViewKey === 'SUMMARY_HK1' || selectedMonthViewKey === 'SUMMARY_YEAR');
+  const show26_3  = (selectedMonthViewKey === 'SUMMARY_HK2' || selectedMonthViewKey === 'SUMMARY_YEAR');
+  const specialRanks = getSpecialEventRanks();
+  const map20_11 = specialRanks.hk1_20_11 || {};
+  const map26_3  = specialRanks.hk2_26_3 || {};
+
+  const hasAny20_11 = Object.values(map20_11).some(v => parseInt(v, 10) > 0);
+  const hasAny26_3  = Object.values(map26_3).some(v => parseInt(v, 10) > 0);
+
+  const rows = CLASSES.map(c => {
+    let sumRanks = 0;
+    let totalMonthlyPenalty = 0;
+    let monthRanks = [];
+
+    targetMonths.forEach(m => {
+      const idx = (m.data || []).findIndex(item => item.id === c.id);
+      if (idx !== -1) {
+        const r = idx + 1;
+        const pen = parseFloat(m.data[idx].remainingPenalty || 0);
+        monthRanks.push({ monthName: m.week, rank: r, penalty: pen });
+        sumRanks += r;
+        totalMonthlyPenalty += pen;
+      } else {
+        monthRanks.push({ monthName: m.week, rank: null, penalty: 0 });
+      }
+    });
+
+    const r20_11 = parseInt(map20_11[c.id], 10) || 0;
+    const r26_3  = parseInt(map26_3[c.id], 10) || 0;
+
+    if (show20_11 && r20_11 > 0) sumRanks += r20_11;
+    if (show26_3 && r26_3 > 0) sumRanks += r26_3;
+
+    // Nếu các lớp khác đã nhập thứ tự 20/11 hoặc 26/3 mà lớp này chưa nhập thì đẩy xuống dưới khi sắp xếp
+    let sortWeight = sumRanks;
+    if (show20_11 && hasAny20_11 && r20_11 <= 0) sortWeight += 999;
+    if (show26_3 && hasAny26_3 && r26_3 <= 0) sortWeight += 999;
+
+    return {
+      id: c.id,
+      grade: c.grade,
+      size: c.size,
+      monthRanks: monthRanks,
+      r20_11: r20_11,
+      r26_3: r26_3,
+      sumRanks: sumRanks,
+      sortWeight: sortWeight,
+      totalMonthlyPenalty: parseFloat(totalMonthlyPenalty.toFixed(1))
+    };
+  });
+
+  // Sắp xếp: Tổng thứ tự NHỎ NHẤT xếp Thứ Nhất (Nếu bằng nhau thì xét thứ tự đợt 20/11-26/3 hoặc tổng điểm trừ tháng thấp hơn)
+  rows.sort((a, b) => {
+    if (a.sortWeight !== b.sortWeight) return a.sortWeight - b.sortWeight;
+    if (show20_11 && a.r20_11 !== b.r20_11 && a.r20_11 > 0 && b.r20_11 > 0) return a.r20_11 - b.r20_11;
+    if (show26_3 && a.r26_3 !== b.r26_3 && a.r26_3 > 0 && b.r26_3 > 0) return a.r26_3 - b.r26_3;
+    if (a.totalMonthlyPenalty !== b.totalMonthlyPenalty) return a.totalMonthlyPenalty - b.totalMonthlyPenalty;
+    return a.id.localeCompare(b.id, undefined, { numeric: true });
+  });
+
+  return { rows, targetMonths, show20_11, show26_3 };
+}
+
+function filterMonthlyViewRows() {
+  if (selectedMonthViewKey.startsWith('DETAIL_')) {
+    filterHistoryRows();
+    return;
+  }
+
+  const tbody = document.getElementById('monthlySummaryTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const isAdminUser = (loggedUser && loggedUser.role === 'admin');
+  const gradeFilter = document.getElementById('historyGradeFilter') ? document.getElementById('historyGradeFilter').value : 'ALL';
+  const q = document.getElementById('historyClassSearch') ? document.getElementById('historyClassSearch').value.trim().toUpperCase() : '';
+
+  const { rows, targetMonths, show20_11, show26_3 } = computeMonthlySummaryRows();
+
+  const filtered = rows.filter(r => {
+    if (gradeFilter !== 'ALL' && r.grade !== gradeFilter) return false;
+    if (q && !r.id.toUpperCase().includes(q)) return false;
+    return true;
+  });
+
+  filtered.forEach((r, idx) => {
+    const rank = idx + 1;
+    let rankBadge = `<span class="rank-pill rank-other">${rank}</span>`;
+    if (rank === 1) rankBadge = `<span class="rank-pill rank-1">1</span>`;
+    else if (rank === 2) rankBadge = `<span class="rank-pill rank-2">2</span>`;
+    else if (rank === 3) rankBadge = `<span class="rank-pill rank-3">3</span>`;
+
+    let monthColsHtml = '';
+    if (targetMonths.length === 0) {
+      monthColsHtml = `<td style="text-align:center; color:var(--text-muted);">--</td>`;
+    } else {
+      monthColsHtml = r.monthRanks.map(m => {
+        if (!m.rank) return `<td style="text-align:center; color:var(--text-muted);">--</td>`;
+        const penText = m.penalty <= 0 ? `Dư +${Math.abs(m.penalty)}đ` : `-${m.penalty}đ`;
+        return `<td style="text-align:center;">
+          <strong style="font-size:0.95rem; color:var(--primary);">Hạng ${m.rank}</strong>
+          <div style="font-size:0.7rem; color:var(--text-muted);">(${penText})</div>
+        </td>`;
+      }).join('');
+    }
+
+    const baseMonthSum = r.monthRanks.reduce((acc, m) => acc + (m.rank || 0), 0);
+
+    let col20_11Html = '';
+    if (show20_11) {
+      col20_11Html = isAdminUser
+        ? `<td style="text-align:center; background:#fffdf5;">
+             <input type="number" min="1" max="36" id="inp_20_11_${r.id}" value="${r.r20_11 > 0 ? r.r20_11 : ''}"
+               placeholder="Nhập hạng..."
+               oninput="onLiveSpecialRankInput('${r.id}', ${baseMonthSum})"
+               style="width:95px; text-align:center; font-weight:800; color:#b45309; border:2px solid #fcd34d; border-radius:6px; padding:0.3rem;">
+           </td>`
+        : `<td style="text-align:center; background:#fffdf5; font-weight:800; color:#b45309; font-size:0.95rem;">
+             ${r.r20_11 > 0 ? 'Hạng ' + r.r20_11 : '<span style="color:var(--text-muted); font-weight:normal;">Chưa nhập</span>'}
+           </td>`;
+    }
+
+    let col26_3Html = '';
+    if (show26_3) {
+      col26_3Html = isAdminUser
+        ? `<td style="text-align:center; background:#f7fee7;">
+             <input type="number" min="1" max="36" id="inp_26_3_${r.id}" value="${r.r26_3 > 0 ? r.r26_3 : ''}"
+               placeholder="Nhập hạng..."
+               oninput="onLiveSpecialRankInput('${r.id}', ${baseMonthSum})"
+               style="width:95px; text-align:center; font-weight:800; color:#15803d; border:2px solid #86efac; border-radius:6px; padding:0.3rem;">
+           </td>`
+        : `<td style="text-align:center; background:#f7fee7; font-weight:800; color:#15803d; font-size:0.95rem;">
+             ${r.r26_3 > 0 ? 'Hạng ' + r.r26_3 : '<span style="color:var(--text-muted); font-weight:normal;">Chưa nhập</span>'}
+           </td>`;
+    }
+
+    let finalBadge = `<span class="badge badge-gray">Thứ ${rank}</span>`;
+    if (rank === 1) finalBadge = `<span class="badge badge-success" style="font-size:0.82rem;">🥇 Xếp Thứ Nhất</span>`;
+    else if (rank === 2) finalBadge = `<span class="badge badge-info" style="font-size:0.82rem;">🥈 Xếp Thứ Nhì</span>`;
+    else if (rank === 3) finalBadge = `<span class="badge badge-warning" style="font-size:0.82rem;">🥉 Xếp Thứ Ba</span>`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center;">${rankBadge}</td>
+      <td><strong>Chi đoàn ${r.id}</strong></td>
+      <td style="text-align:center;"><span class="badge badge-info">Khối ${r.grade}</span></td>
+      ${monthColsHtml}
+      ${col20_11Html}
+      ${col26_3Html}
+      <td id="cell_sum_rank_${r.id}" style="text-align:center; background:#eff6ff; font-weight:900; font-size:1.1rem; color:var(--primary);">
+        ${r.sumRanks > 0 ? r.sumRanks : '--'}
+      </td>
+      <td style="text-align:center;">${finalBadge}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Cộng nhẩm tức thì vào ô Tổng thứ tự khi Admin đang gõ mà không làm nhảy dòng
+function onLiveSpecialRankInput(classId, baseMonthSum) {
+  const specialRanks = getSpecialEventRanks();
+  if (!specialRanks.hk1_20_11) specialRanks.hk1_20_11 = {};
+  if (!specialRanks.hk2_26_3) specialRanks.hk2_26_3 = {};
+
+  const inp20 = document.getElementById(`inp_20_11_${classId}`);
+  const inp26 = document.getElementById(`inp_26_3_${classId}`);
+
+  if (inp20) {
+    const val20 = parseInt(inp20.value, 10);
+    if (!isNaN(val20) && val20 > 0) specialRanks.hk1_20_11[classId] = val20;
+    else delete specialRanks.hk1_20_11[classId];
+  }
+  if (inp26) {
+    const val26 = parseInt(inp26.value, 10);
+    if (!isNaN(val26) && val26 > 0) specialRanks.hk2_26_3[classId] = val26;
+    else delete specialRanks.hk2_26_3[classId];
+  }
+
+  localStorage.setItem('yka_special_ranks_v1', JSON.stringify(specialRanks));
+  if (typeof TABS_CONFIG !== 'undefined') {
+    TABS_CONFIG.specialEventRanks = specialRanks;
+    localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+  }
+
+  let newSum = baseMonthSum;
+  if (inp20 && parseInt(inp20.value, 10) > 0) newSum += parseInt(inp20.value, 10);
+  if (inp26 && parseInt(inp26.value, 10) > 0) newSum += parseInt(inp26.value, 10);
+
+  const sumCell = document.getElementById(`cell_sum_rank_${classId}`);
+  if (sumCell) sumCell.textContent = newSum > 0 ? newSum : '--';
+}
+
+// Lưu chính thức thứ tự 20/11 & 26/3 lên Google Drive và sắp xếp lại bảng từ Thứ Nhất -> Thứ 36
+async function saveSpecialEventRanks() {
+  if (!loggedUser || loggedUser.role !== 'admin') return;
+
+  const specialRanks = getSpecialEventRanks();
+  TABS_CONFIG.specialEventRanks = specialRanks;
+  localStorage.setItem('yka_special_ranks_v1', JSON.stringify(specialRanks));
+  localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+
+  const btn = document.getElementById('btnSaveSpecialRanks');
+  const oldText = btn ? btn.innerHTML : '💾 Lưu Thứ Tự & Sắp Xếp Hạng';
+  if (btn) {
+    btn.innerHTML = '⏳ Đang lưu & xếp hạng...';
+    btn.disabled = true;
+  }
+
+  try {
+    if (typeof syncDataToCloud === 'function') {
+      await syncDataToCloud("db_tabs.json", TABS_CONFIG);
+    }
+    if (typeof publishUpdate === 'function') {
+      publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
+    }
+    filterMonthlyViewRows();
+    alert('✅ Đã lưu thứ tự đợt thi đua và sắp xếp lại bảng xếp hạng (Tổng thứ tự nhỏ nhất xếp Thứ Nhất)!');
+  } finally {
+    if (btn) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+    }
+  }
+}
+
+function exportMonthlyViewCSV() {
+  if (selectedMonthViewKey.startsWith('DETAIL_')) {
+    exportHistoryCSV();
+    return;
+  }
+
+  const gradeFilter = document.getElementById('historyGradeFilter') ? document.getElementById('historyGradeFilter').value : 'ALL';
+  const { rows, targetMonths, show20_11, show26_3 } = computeMonthlySummaryRows();
+  const filtered = rows.filter(r => gradeFilter === 'ALL' || r.grade === gradeFilter);
+
+  const monthHeaderCols = targetMonths.map(m => `Thứ tự ${m.week}`).join(',');
+  let csv = `\uFEFFHạng,Chi đoàn,Khối,Sĩ số${monthHeaderCols ? ',' + monthHeaderCols : ''}${show20_11 ? ',Thi đua 20/11' : ''}${show26_3 ? ',Hội trại 26/3' : ''},TỔNG THỨ TỰ,Xếp hạng chung cuộc\n`;
+
+  filtered.forEach((r, idx) => {
+    const rank = idx + 1;
+    const mVals = r.monthRanks.map(m => m.rank || '').join(',');
+    csv += `${rank},Chi đoàn ${r.id},${r.grade},${r.size}${mVals ? ',' + mVals : ''}${show20_11 ? ',' + (r.r20_11 || '') : ''}${show26_3 ? ',' + (r.r26_3 || '') : ''},${r.sumRanks || 0},Thứ ${rank}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `Tong_Hop_Thu_Tu_Thi_Dua_Thang_${selectedMonthViewKey}_YKA.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 function changeHistoryWeek(idx) {
   selectedHistoryIndex = parseInt(idx);
   renderHistoryTable();
@@ -6916,7 +7407,6 @@ function filterHistoryRows() {
     `;
   });
 }
-
 function undoSelectedWeekFromDropdown() {
   const weekNum = parseInt(document.getElementById('selectWeekToFinalize')?.value) || 1;
   const idx = weeklyHistory.findIndex(h => 
