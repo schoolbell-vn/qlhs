@@ -398,6 +398,7 @@
     </div>
     <button class="btn btn-outline btn-sm" id="btnChangeMyPass" onclick="openChangePassModal(false)" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔑 Đổi MK</button>
     <button class="btn btn-outline btn-sm" id="btnMqttServer" onclick="if(loggedUser && loggedUser.role==='admin') document.getElementById('mqttModal').style.display='flex'" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.5rem; border-radius:6px; cursor:pointer; font-weight:600;">⚙️ Máy chủ</button>
+    <button class="btn btn-outline btn-sm" id="btnForceSync" onclick="fetchDatabaseFromCloud(true)" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔄 Làm mới</button>
     <button class="btn-logout" onclick="logout()">Đăng Xuất</button>
   </div>
 </header>
@@ -2053,11 +2054,12 @@ function loadCloudDataViaJsonp() {
       clearTimeout(timer);
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error("Lỗi tải script JSONP"));
+      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn kết nối"));
     };
 
-    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&t=" + Date.now();
-    document.body.appendChild(script);
+    // Tăng cường mã chống Cache ngầm của Android và đưa script lên thẻ HEAD
+    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&nocache=" + Math.random() + "&t=" + Date.now();
+    document.head.appendChild(script); 
   });
 }
 
@@ -2068,6 +2070,13 @@ async function fetchDatabaseFromCloud(force = false) {
 
   isFetchingCloud = true;
   lastCloudFetchTime = now;
+
+  // Đổi trạng thái nút bấm để người dùng biết đang tải
+  const btnSync = document.getElementById('btnForceSync');
+  if (btnSync) {
+    btnSync.innerHTML = "⏳ Đang tải...";
+    btnSync.disabled = true;
+  }
 
   try {
     const db = await loadCloudDataViaJsonp();
@@ -2186,10 +2195,24 @@ if (db.users && Array.isArray(db.users) && db.users.length > 1) {
     
     refreshStudentDatalists();
     
+    // Nếu tải xong mà là người dùng chủ động bấm nút thì báo thành công
+    if (force && btnSync) {
+      btnSync.innerHTML = "✅ Xong!";
+      setTimeout(() => { btnSync.innerHTML = "🔄 Làm mới"; }, 2000);
+    }
+    
   } catch (error) {
     console.warn("Lỗi kết nối:", error);
+    // HIỂN THỊ CẢNH BÁO LÊN MÀN HÌNH NẾU ĐIỆN THOẠI CHẶN KẾT NỐI
+    if (force) {
+      alert("⚠️ ĐIỆN THOẠI CHẶN KẾT NỐI!\nTrình duyệt trên điện thoại của bạn đang ngăn chặn hệ thống tải dữ liệu từ Google Drive.\n\nVui lòng thử:\n1. Tắt tính năng 'Tiết kiệm dữ liệu' (Data Saver/Lite mode)\n2. Tắt chặn Cookie bên thứ 3 trong cài đặt trình duyệt\n3. Hoặc dùng trình duyệt Chrome/Safari chuẩn thay vì trình duyệt Zalo/Facebook.");
+    }
   } finally {
     isFetchingCloud = false;
+    if (btnSync && btnSync.innerHTML !== "✅ Xong!") {
+      btnSync.innerHTML = "🔄 Làm mới";
+      btnSync.disabled = false;
+    }
   }
 }
 
