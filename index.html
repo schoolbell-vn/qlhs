@@ -2077,9 +2077,16 @@ async function fetchDatabaseFromCloud(force = false) {
       return;
     }
     
-    // Nạp Danh sách Học sinh
+    if (db.appVersion) {
+      const currentVer = localStorage.getItem('yka_app_version');
+      if (currentVer !== db.appVersion) {
+        localStorage.setItem('yka_app_version', db.appVersion);
+        window.location.replace(window.location.pathname + "?v=" + Date.now());
+        return; 
+      }
+    }
+    
     if (db.students && db.students.length > 0) {
-      // Ép chuẩn hóa toàn bộ ngày sinh bị dính chữ GMT về dạng DD/MM/YYYY
       db.students.forEach(s => {
         if (s.dob && (s.dob.includes("GMT") || s.dob.includes("T00:"))) {
           let d = new Date(s.dob);
@@ -2090,97 +2097,104 @@ async function fetchDatabaseFromCloud(force = false) {
           }
         }
       });
-      
       STUDENTS_DB = db.students;
       localStorage.setItem('yka_students_db_v1', JSON.stringify(STUDENTS_DB));
       CLASSES = getDynamicClasses();
     }
-    // Nạp Cấu hình Tiêu chí Điểm động
-    // Nạp Cấu hình Tiêu chí Điểm động
-    if (db.rules && db.rules.length > 0) {
-      RULES = db.rules;
-      localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
-      initRuleSelects(); // Gắn danh sách mới vào các ô thả xuống của Cờ Đỏ, TNXK, BCH
-      if (typeof renderRulesConfigTable === 'function') renderRulesConfigTable(); // Vẽ lại bảng cấu hình ngay lập tức
-    }
-    // Nạp Cấu hình Ma trận phân quyền Tab & Cấu hình Xếp loại RL
+
+    // =====================================================================
+    // CƠ CHẾ CHỐNG GHI ĐÈ NGƯỢC (Chống Google Drive tải file cũ về đè lên file mới)
+    // =====================================================================
+    const lastAdminSave = parseInt(localStorage.getItem('yka_last_admin_save') || '0', 10);
+    const isDriveStale = (Date.now() - lastAdminSave < 120000); // 120000ms = 2 phút
+
+    if (!isDriveStale) {
+      if (db.rules && db.rules.length > 0) {
+        RULES = db.rules;
+        localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
+        initRuleSelects(); 
+        if (typeof renderRulesConfigTable === 'function') renderRulesConfigTable(); 
+      }
+      
       if (db.tabs) {
-      TABS_CONFIG = db.tabs;
-      localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
-      if (db.tabs.conductConfig) {
-        CONDUCT_CONFIG = { ...DEFAULT_CONDUCT_CONFIG, ...db.tabs.conductConfig };
-        localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
-      }
-      if (db.tabs.mqttSecret) {
-        localStorage.setItem('yka_mqtt_secret_v1', db.tabs.mqttSecret);
-        if (!mqttClient || !mqttClient.connected) connectMqtt();
-      }
-    }
-
-    // Nạp Biên bản Cờ đỏ / TNXK / BCH (Bảo vệ: Không cho mảng rỗng trên Drive xóa mất dữ liệu đang có trong máy)
-    if (db.violations && Array.isArray(db.violations)) {
-      if (db.violations.length > 0 || violations.length === 0) {
-        violations = db.violations;
-        localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
-      } else if (loggedUser && loggedUser.role === 'admin') {
-        console.warn("Cảnh báo: Dữ liệu biên bản trên Drive đang trống, hệ thống tự động giữ lại dữ liệu trong máy!");
-      }
-    }
-    
-    // Nạp Điểm Sổ Đầu Bài (Bảo vệ chống ghi đè rỗng)
-    if (db.sdb && Object.keys(db.sdb).length > 0) {
-      sdbFullData = db.sdb;
-      localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
-    }
-
-    // Nạp Lịch sử chốt tuần từ Đám mây (Đồng bộ chuẩn xác kể cả khi Admin đã xóa/hoàn tác về 0 tuần)
-    if (db.history && Array.isArray(db.history)) {
-      weeklyHistory = db.history;
-      localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
-    }
-   // Nạp Danh sách Tài khoản (Bảo vệ: Phải có nhiều hơn 1 tài khoản mới nhận)
-if (db.users && Array.isArray(db.users) && db.users.length > 1) {
-   const incomingUsers = db.users;
-   // KIỂM TRA BẢO MẬT: Nếu tải về từ chế độ Khách (pass bị xóa trắng) -> KHÔNG ghi đè pass trong máy
-   const isSanitized = incomingUsers.some(u => u.username === 'admin' && u.pass === '');
-
-   if (!isSanitized) {
-     systemUsers = incomingUsers; // Nếu là Admin tải về có pass thật -> Cập nhật 100%
-   } else {
-     // Nếu bị che pass -> Chỉ cập nhật tên/quyền, GIỮ NGUYÊN mật khẩu đang lưu trong máy
-     systemUsers = systemUsers.map(localU => {
-       const inc = incomingUsers.find(u => u.username === localU.username);
-       return inc ? { ...inc, pass: localU.pass } : localU;
-     });
-   }
-
-   if (ensureGvcnAccountsExist()) {
-     updateUsersLocalAndCloud(); 
-   }
-   localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-      // Tự động khôi phục mật khẩu cho học sinh đã đổi trước đó nhưng bị Cloud ghi đè mất
-      if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
-        const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
-        if (cloudUser && cloudUser.pass !== loggedUser.pass && !isUsingDefaultPatternPass(loggedUser)) {
-          cloudUser.pass = loggedUser.pass;
-          cloudUser.mustChangePass = false;
-          updateSinglePassToCloud(loggedUser.username, loggedUser.pass);
-          publishUpdate('UPDATE_USER_PASS', { username: loggedUser.username, newPass: loggedUser.pass });
+        TABS_CONFIG = db.tabs;
+        localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+        if (db.tabs.conductConfig) {
+          CONDUCT_CONFIG = { ...DEFAULT_CONDUCT_CONFIG, ...db.tabs.conductConfig };
+          localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
+        }
+        if (db.tabs.mqttSecret) {
+          localStorage.setItem('yka_mqtt_secret_v1', db.tabs.mqttSecret);
+          if (!mqttClient || !mqttClient.connected) connectMqtt();
         }
       }
 
-      if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
-        renderAdminUsersTable(); // Vẽ lại bảng ngay khi lấy dữ liệu từ Drive về
+      if (db.history && Array.isArray(db.history)) {
+        weeklyHistory = db.history;
+        localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
       }
-    } else {
-      // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ tài khoản và đẩy lên Đám mây
-      if (!systemUsers || systemUsers.length <= 1) {
-        systemUsers = generateDefaultUsers();
-        //updateUsersLocalAndCloud();
+
+      if (db.users && Array.isArray(db.users) && db.users.length > 1) {
+        const incomingUsers = db.users;
+        const isSanitized = incomingUsers.some(u => u.username === 'admin' && u.pass === '');
+
+        if (!isSanitized) {
+          systemUsers = incomingUsers; 
+        } else {
+          systemUsers = systemUsers.map(localU => {
+            const inc = incomingUsers.find(u => u.username === localU.username);
+            return inc ? { ...inc, pass: localU.pass } : localU;
+          });
+        }
+
+        if (ensureGvcnAccountsExist()) {
+          updateUsersLocalAndCloud(); 
+        }
+        localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+
+        if (loggedUser && loggedUser.role !== 'guest' && loggedUser.role !== 'admin' && loggedUser.mustChangePass === false) {
+          const cloudUser = systemUsers.find(u => u.username.toLowerCase() === loggedUser.username.toLowerCase());
+          if (cloudUser && cloudUser.pass !== loggedUser.pass && !isUsingDefaultPatternPass(loggedUser)) {
+            cloudUser.pass = loggedUser.pass;
+            cloudUser.mustChangePass = false;
+            updateSinglePassToCloud(loggedUser.username, loggedUser.pass);
+            publishUpdate('UPDATE_USER_PASS', { username: loggedUser.username, newPass: loggedUser.pass });
+          }
+        }
+
+        if (loggedUser && loggedUser.role === 'admin' && typeof renderAdminUsersTable === 'function') {
+          renderAdminUsersTable();
+        }
       }
     }
+    // ======================= KẾT THÚC BẢO VỆ CẤU HÌNH =======================
 
-    // Cập nhật lại giao diện ngay khi có dữ liệu từ Cloud về
+    // BẢO VỆ THÔNG MINH CHO CỜ ĐỎ
+    if (db.violations && Array.isArray(db.violations)) {
+      if (violations.length === 0) {
+        violations = db.violations;
+      } else {
+        const driveIds = new Set(db.violations.map(v => v.id));
+        const recentLocalViolations = violations.filter(v => 
+          !driveIds.has(v.id) && (Date.now() - v.id < 120000) 
+        );
+        violations = [...db.violations, ...recentLocalViolations]; 
+      }
+      localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+    }
+    
+    // BẢO VỆ THÔNG MINH CHO SỔ ĐẦU BÀI
+    if (db.sdb && Object.keys(db.sdb).length > 0) {
+      Object.keys(db.sdb).forEach(cid => {
+        const driveSdb = db.sdb[cid];
+        const localSdb = sdbFullData[cid];
+        if (!localSdb || !localSdb.isReportedThisWeek || driveSdb.isReportedThisWeek) {
+          sdbFullData[cid] = driveSdb;
+        }
+      });
+      localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
+    }
+
     if (loggedUser) setupUserSessionUI(); 
     else renderLeaderboard();
     
@@ -2288,6 +2302,7 @@ const DEFAULT_RULES = [
 // Chuyển thành biến let để có thể thay đổi được. Ưu tiên lấy từ cấu hình, nếu không có thì lấy Mặc định
 let RULES = JSON.parse(localStorage.getItem('yka_rules_v1')) || DEFAULT_RULES;
 // Hàm 1: Lưu cấu hình Tiêu chí lên Google Drive (Đã thêm no-cors và trạng thái nút)
+// Hàm 1: Lưu cấu hình Tiêu chí lên Google Drive (Đã thêm no-cors và trạng thái nút)
 async function saveRulesToCloud() {
   localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
   
@@ -2300,15 +2315,25 @@ async function saveRulesToCloud() {
     btn.disabled = true;
   }
 
+  // =========================================================================
+  // BƯỚC CẢI TIẾN: CẬP NHẬT GIAO DIỆN VÀ BẮN TÍN HIỆU MQTT NGAY LẬP TỨC
+  // Đưa đoạn này lên trước `await fetch` để không bị Google chặn luồng
+  // =========================================================================
+  initRuleSelects(); 
+  
+  if (typeof publishUpdate === 'function') {
+    publishUpdate('UPDATE_RULES', RULES);
+  }
+  // =========================================================================
+
   try {
+    // Để hệ thống kết nối ngầm và ghi file lên Google Drive (Quá trình này mất 2-5 giây kệ nó)
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors', // <--- CHÌA KHÓA VƯỢT TƯỜNG LỬA GITHUB
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_rules.json", content: RULES }))
     });
-    
-    initRuleSelects(); 
     
     if (btn) {
       btn.innerHTML = "✅ ĐÃ LƯU LÊN ĐÁM MÂY THÀNH CÔNG!";
@@ -2663,6 +2688,7 @@ function connectMqtt() {
         const payload = JSON.parse(message.toString());
         // Bỏ kiểm tra username, chỉ chặn tin nhắn từ chính thiết bị này gửi đi
         if (payload.sender === SESSION_ID) return; 
+        localStorage.setItem('yka_last_admin_save', Date.now());
 
         if (payload.action === 'NEW_VIOLATION') {
           violations.push(payload.data);
@@ -3289,6 +3315,9 @@ async function saveConductConfigToCloud() {
   localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
   TABS_CONFIG.conductConfig = CONDUCT_CONFIG;
   localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+  
+  // Cắm cờ chống Google Drive ghi đè ngược trong 2 phút
+  localStorage.setItem('yka_last_admin_save', Date.now()); 
 
   const btn = document.getElementById('btnSaveConductConfig');
   const oldText = btn ? btn.innerHTML : '💾 LƯU CẤU HÌNH XẾP LOẠI & ÁP DỤNG TOÀN TRƯỜNG';
@@ -3298,6 +3327,12 @@ async function saveConductConfigToCloud() {
     btn.disabled = true;
   }
 
+  // Bắn MQTT và cập nhật giao diện TRƯỚC KHI bị Google chặn luồng
+  if (typeof publishUpdate === 'function') {
+    publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
+  }
+  if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
+
   try {
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
@@ -3305,8 +3340,6 @@ async function saveConductConfigToCloud() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG }))
     });
-
-    if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
 
     if (btn) {
       btn.innerHTML = '✅ ĐÃ LƯU & ÁP DỤNG THÀNH CÔNG!';
@@ -3320,7 +3353,7 @@ async function saveConductConfigToCloud() {
     alert('✅ Đã lưu Bộ Quy Tắc Xếp Loại Rèn Luyện lên Đám mây thành công!');
   } catch (e) {
     console.error(e);
-    alert('⚠️ Đã lưu trên máy nhưng chưa đẩy được lên Đám mây.');
+    alert('⚠️️ Đã lưu trên máy nhưng chưa đẩy được lên Đám mây.');
     if (btn) {
       btn.innerHTML = oldText;
       btn.style.backgroundColor = '';
@@ -5034,6 +5067,7 @@ function attachAuthCredentials(payloadObj) {
 }
 
 async function syncDataToCloud(fileName, content) {
+  localStorage.setItem('yka_last_admin_save', Date.now());
   try {
     // Nếu lưu danh sách tài khoản, tuyệt đối không lưu mật khẩu vào trình duyệt của máy không phải Admin
     await fetch(MASTER_APP_SCRIPT_URL, {
@@ -5773,7 +5807,7 @@ async function handleCodoZeroViolationReport() {
 
   violations.push(zeroRecord);
   if (typeof appendSingleViolationToCloud === 'function') {
-    await appendSingleViolationToCloud(zeroRecord);
+    appendSingleViolationToCloud(zeroRecord);
   }
 
   if (mqttClient && mqttClient.connected) {
