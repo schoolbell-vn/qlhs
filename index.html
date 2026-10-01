@@ -2079,6 +2079,21 @@ async function fetchDatabaseFromCloud(force = false) {
       return;
     }
     
+    // === CHÈN THÊM CƠ CHẾ TỰ ĐỘNG PHÁ CACHE HTML VÀO ĐÂY ===
+    if (db.appVersion) {
+      const currentVer = localStorage.getItem('yka_app_version');
+      if (currentVer !== db.appVersion) {
+        localStorage.setItem('yka_app_version', db.appVersion);
+        // Ép điện thoại đổi đường link (thêm bộ số ngẫu nhiên) để tải code HTML mới nhất
+        window.location.replace(window.location.pathname + "?v=" + Date.now());
+        return; // Dừng chạy code cũ
+      }
+    }
+    // =======================================================
+    
+    // Nạp Danh sách Học sinh
+    if (db.students && db.students.length > 0) {
+    
     // Nạp Danh sách Học sinh
     if (db.students && db.students.length > 0) {
       // Ép chuẩn hóa toàn bộ ngày sinh bị dính chữ GMT về dạng DD/MM/YYYY
