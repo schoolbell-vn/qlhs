@@ -2874,47 +2874,49 @@ async function handleLoginSubmit(e) {
     }
 
     // ====================================================================
-    // XÁC THỰC BÌNH THƯỜNG CHO HỌC SINH / GVCN (Qua Google Drive)
+    // XÁC THỰC BÌNH THƯỜNG CHO HỌC SINH / GVCN
     // ====================================================================
     let loggedInUser = null;
-    try {
-      const url = `${MASTER_APP_SCRIPT_URL}?action=login&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&t=${Date.now()}`;
-      const response = await fetch(url, { redirect: "follow" });
-      const res = await response.json();
-      if (res && res.status === 'success' && res.user) {
-        loggedInUser = res.user;
-        if (res.allUsers && Array.isArray(res.allUsers)) {
-          systemUsers = res.allUsers;
-          localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
-        }
-      } else if (res && res.status === 'invalid') {
-        alert('❌ Tên đăng nhập hoặc mật khẩu không đúng!');
-        return;
-      }
-    } catch (err1) {
+
+    // 1. KIỂM TRA BỘ NHỚ MÁY TRƯỚC (Ưu tiên tốc độ tức thì như Admin)
+    const localFound = systemUsers.find(user => user.username.toLowerCase() === uLower);
+    const expectedDefault = uLower.replace('_', '@');
+    
+    if (localFound && (p === localFound.pass || p === expectedDefault)) {
+      loggedInUser = localFound;
+    }
+
+    // 2. NẾU SAI PASS HOẶC MÁY CHƯA LƯU, MỚI GỌI LÊN GOOGLE DRIVE (Chấp nhận chậm)
+    if (!loggedInUser) {
       try {
-        const resJsonp = await verifyLoginViaJsonp(u, p);
-        if (resJsonp && resJsonp.status === 'success' && resJsonp.user) {
-          loggedInUser = resJsonp.user;
-          if (resJsonp.allUsers && Array.isArray(resJsonp.allUsers)) {
-            systemUsers = resJsonp.allUsers;
+        const url = `${MASTER_APP_SCRIPT_URL}?action=login&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&t=${Date.now()}`;
+        const response = await fetch(url, { redirect: "follow" });
+        const res = await response.json();
+        if (res && res.status === 'success' && res.user) {
+          loggedInUser = res.user;
+          if (res.allUsers && Array.isArray(res.allUsers)) {
+            systemUsers = res.allUsers;
             localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
           }
-        } else if (resJsonp && resJsonp.status === 'invalid') {
+        } else if (res && res.status === 'invalid') {
           alert('❌ Tên đăng nhập hoặc mật khẩu không đúng!');
           return;
         }
-      } catch (err2) {
-        console.warn("Lỗi mạng, dùng bộ nhớ cục bộ dự phòng...");
-      }
-    }
-
-    if (!loggedInUser) {
-      const localFound = systemUsers.find(user => user.username.toLowerCase() === uLower);
-      if (localFound) {
-        const expectedDefault = uLower.replace('_', '@');
-        if (p === localFound.pass || p === expectedDefault) {
-          loggedInUser = localFound;
+      } catch (err1) {
+        try {
+          const resJsonp = await verifyLoginViaJsonp(u, p);
+          if (resJsonp && resJsonp.status === 'success' && resJsonp.user) {
+            loggedInUser = resJsonp.user;
+            if (resJsonp.allUsers && Array.isArray(resJsonp.allUsers)) {
+              systemUsers = resJsonp.allUsers;
+              localStorage.setItem('yka_system_users_v1', JSON.stringify(systemUsers));
+            }
+          } else if (resJsonp && resJsonp.status === 'invalid') {
+            alert('❌ Tên đăng nhập hoặc mật khẩu không đúng!');
+            return;
+          }
+        } catch (err2) {
+          console.warn("Lỗi mạng, không thể kết nối tới Google Server.");
         }
       }
     }
