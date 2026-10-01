@@ -2033,31 +2033,16 @@ function getAuthQueryParams() {
 }
 
 function loadCloudDataViaJsonp() {
-  return new Promise(async (resolve, reject) => {
-    var authParams = getAuthQueryParams();
-    var baseUrl = MASTER_APP_SCRIPT_URL + "?t=" + Date.now() + authParams;
-    
-    // ƯU TIÊN 1: DÙNG FETCH CHUẨN (Xử lý dữ liệu lớn siêu tốc trên Android, không bị giới hạn bộ nhớ)
-    try {
-      var res = await fetch(baseUrl, { method: 'GET', redirect: 'follow' });
-      if (res.ok) {
-        var data = await res.json();
-        return resolve(data);
-      }
-    } catch (fetchErr) {
-      console.warn("Mạng khắt khe chặn fetch, tự động chuyển sang JSONP dự phòng...");
-    }
-
-    // ƯU TIÊN 2: DÙNG JSONP (Dự phòng xuyên tường lửa khi fetch thất bại)
-    var cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-    var script = document.createElement("script");
+  return new Promise((resolve, reject) => {
+    const cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    const script = document.createElement("script");
     script.async = true;
     
-    var timer = setTimeout(function() {
+    const timer = setTimeout(() => {
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
       reject(new Error("Quá thời gian kết nối Đám mây"));
-    }, 20000); // Tăng lên 20s cho mạng yếu
+    }, 15000);
 
     window[cbName] = function(data) {
       clearTimeout(timer);
@@ -2070,10 +2055,11 @@ function loadCloudDataViaJsonp() {
       clearTimeout(timer);
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn JSONP"));
+      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn kết nối"));
     };
 
-    script.src = baseUrl + "&callback=" + cbName;
+    // Khôi phục luồng JSONP siêu tốc nguyên bản, chỉ thêm biến nocache=Math.random() để ép điện thoại Android không được dùng dữ liệu cũ
+    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&nocache=" + Math.random() + "&t=" + Date.now();
     document.head.appendChild(script); 
   });
 }
