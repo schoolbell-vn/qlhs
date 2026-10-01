@@ -2314,18 +2314,12 @@ async function saveRulesToCloud() {
     btn.style.backgroundColor = "var(--warning)";
     btn.disabled = true;
   }
-
-  // =========================================================================
-  // BƯỚC CẢI TIẾN: CẬP NHẬT GIAO DIỆN VÀ BẮN TÍN HIỆU MQTT NGAY LẬP TỨC
-  // Đưa đoạn này lên trước `await fetch` để không bị Google chặn luồng
-  // =========================================================================
-  initRuleSelects(); 
   
+  initRuleSelects(); 
   if (typeof publishUpdate === 'function') {
     publishUpdate('UPDATE_RULES', RULES);
   }
-  // =========================================================================
-
+    
   try {
     // Để hệ thống kết nối ngầm và ghi file lên Google Drive (Quá trình này mất 2-5 giây kệ nó)
     await fetch(MASTER_APP_SCRIPT_URL, {
@@ -3325,12 +3319,12 @@ async function saveConductConfigToCloud() {
     btn.innerHTML = '⏳ Đang đồng bộ lên Đám mây...';
     btn.style.backgroundColor = 'var(--warning)';
     btn.disabled = true;
+    
   }
-
-  // Bắn MQTT và cập nhật giao diện TRƯỚC KHI bị Google chặn luồng
   if (typeof publishUpdate === 'function') {
     publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
   }
+  
   if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
 
   try {
