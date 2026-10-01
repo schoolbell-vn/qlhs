@@ -5592,12 +5592,8 @@ function renderCodoLogsTable() {
 
         ${
           v.imageEvidence
-            ? `<div style="margin-top:0.25rem;">
-                 <img
-                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
-                   class="evidence-img-thumb"
-                   onclick="openImgModal('${v.imageEvidence}')"
-                   title="Xem ảnh">
+            ? `<div style="margin-top:0.35rem;">
+                 <button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button>
                </div>`
             : ''
         }
@@ -5732,14 +5728,10 @@ function renderTnxkLogsTable() {
             : ''
         }
 
-        ${
+       ${
           v.imageEvidence
-            ? `<div style="margin-top:0.25rem;">
-                 <img
-                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
-                   class="evidence-img-thumb"
-                   onclick="openImgModal('${v.imageEvidence}')"
-                   title="Xem ảnh">
+            ? `<div style="margin-top:0.35rem;">
+                 <button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button>
                </div>`
             : ''
         }
@@ -5969,7 +5961,7 @@ function renderReviewTable() {
       <td style="font-size:0.8rem;">
         <div>${v.evidence}</div>
         ${v.linkEvidence ? `<div style="margin-top:0.25rem;"><a href="${v.linkEvidence}" target="_blank" style="color:var(--primary-light); font-weight:600;">🔗 Link Minh Chứng</a></div>` : ''}
-        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${getDirectDriveImgUrl(v.imageEvidence)}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Bấm để phóng to ảnh" onerror="this.style.display='none'"> <a href="${v.imageEvidence}" target="_blank" style="font-size:0.75rem; color:var(--primary-light); font-weight:600; display:inline-block;">🔍 Xem ảnh</a></div>` : ''}
+        ${v.imageEvidence ? `<div style="margin-top:0.35rem;"><button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button></div>` : ''}
       </td>
       <td style="font-size:0.8rem;">${v.recorder}</td>
       <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status || 'Chờ duyệt'}</span></td>
