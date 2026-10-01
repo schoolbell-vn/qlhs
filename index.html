@@ -2056,9 +2056,7 @@ function loadCloudDataViaJsonp() {
       reject(new Error("Lỗi tải script JSONP"));
     };
 
-    // Đã thêm mã ngẫu nhiên UUID để ép Android tải lại 100%
-    const randomBuster = Math.random().toString(36).substring(2, 15);
-    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&_req=" + randomBuster + "&t=" + Date.now();
+    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&t=" + Date.now();
     document.body.appendChild(script);
   });
 }
@@ -2078,21 +2076,6 @@ async function fetchDatabaseFromCloud(force = false) {
       alert("❌ HỆ THỐNG MÁY CHỦ BÁO LỖI:\n\n" + db.message);
       return;
     }
-    
-    // === CHÈN THÊM CƠ CHẾ TỰ ĐỘNG PHÁ CACHE HTML VÀO ĐÂY ===
-    if (db.appVersion) {
-      const currentVer = localStorage.getItem('yka_app_version');
-      if (currentVer !== db.appVersion) {
-        localStorage.setItem('yka_app_version', db.appVersion);
-        // Ép điện thoại đổi đường link (thêm bộ số ngẫu nhiên) để tải code HTML mới nhất
-        window.location.replace(window.location.pathname + "?v=" + Date.now());
-        return; // Dừng chạy code cũ
-      }
-    }
-    // =======================================================
-    
-    // Nạp Danh sách Học sinh
-    if (db.students && db.students.length > 0) {
     
     // Nạp Danh sách Học sinh
     if (db.students && db.students.length > 0) {
@@ -2327,12 +2310,6 @@ async function saveRulesToCloud() {
     
     initRuleSelects(); 
     
-    // --- THÊM DÒNG NÀY ĐỂ BÁO TÍN HIỆU CHO TẤT CẢ CÁC MÁY KHÁC (ĐỒNG BỘ 0.1 GIÂY) ---
-    if (typeof publishUpdate === 'function') {
-      publishUpdate('UPDATE_RULES', RULES);
-    }
-    // --------------------------------------------------------------------------------
-    
     if (btn) {
       btn.innerHTML = "✅ ĐÃ LƯU LÊN ĐÁM MÂY THÀNH CÔNG!";
       btn.style.backgroundColor = "var(--success)";
@@ -2434,7 +2411,6 @@ function saveRuleConfig() {
   }
   
   renderRulesConfigTable();
-  saveRulesToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG LƯU KHI THÊM/SỬA
 }
 
 // Hàm 4: Kích hoạt chế độ Sửa (Đổ dữ liệu lên form)
@@ -2469,7 +2445,6 @@ function deleteRule(code) {
   if (confirm(`Bạn có chắc muốn xóa tiêu chí [${code}] khỏi hệ thống?`)) {
     RULES = RULES.filter(r => r.code !== code);
     renderRulesConfigTable();
-    saveRulesToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG XÓA TRÊN ĐÁM MÂY
   }
 }
 // 3. TẠO HỆ THỐNG TÀI KHOẢN (ẨN MẬT KHẨU ADMIN CHỐNG F12, NHƯNG GIỮ ĐĂNG NHẬP MƯỢT CHO HỌC SINH)
@@ -2751,20 +2726,8 @@ function connectMqtt() {
             }
           }
         }
-        // --- THÊM KHỐI NÀY ĐỂ NHẬN TIÊU CHÍ MỚI VÀ CẬP NHẬT NGAY TRÊN MÀN HÌNH ---
-        else if (payload.action === 'UPDATE_RULES') {
-          if (payload.data) {
-            RULES = payload.data;
-            localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
-            initRuleSelects();
-            if (typeof renderRulesConfigTable === 'function') {
-              renderRulesConfigTable();
-            }
-          }
-        }
-        // -------------------------------------------------------------------------
         else if (payload.action === 'SYNC_HISTORY_STATE') {
-        // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
+          // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
           if (Array.isArray(payload.data.history)) {
             weeklyHistory = payload.data.history;
             localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
@@ -3276,7 +3239,6 @@ function saveConductRuleItem() {
   }
 
   renderConductRulesTable();
-  saveConductConfigToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG LƯU
 }
 
 function editConductRuleItem(code) {
@@ -3308,7 +3270,6 @@ function deleteConductRuleItem(code) {
   if (confirm(`Bạn có chắc muốn xóa tiêu chí khống chế [${code}]?`)) {
     CONDUCT_CONFIG.rules = CONDUCT_CONFIG.rules.filter(r => r.code !== code);
     renderConductRulesTable();
-    saveConductConfigToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG XÓA
   }
 }
 
@@ -3342,12 +3303,6 @@ async function saveConductConfigToCloud() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG }))
     });
-
-    // --- THÊM DÒNG NÀY ĐỂ BÁO TÍN HIỆU CHO TẤT CẢ CÁC MÁY KHÁC ---
-    if (typeof publishUpdate === 'function') {
-      publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
-    }
-    // -------------------------------------------------------------
 
     if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
 
@@ -8507,15 +8462,6 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('focus', () => {
   fetchDatabaseFromCloud();
-});
-// Tự động tải lại dữ liệu khi điện thoại thoát khỏi chế độ ngủ hoặc chuyển tab
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    // Chỉ tự động fetch nếu đã đăng nhập và cách lần cuối ít nhất 5 giây
-    if (loggedUser && (Date.now() - lastCloudFetchTime > 5000)) {
-      fetchDatabaseFromCloud(true);
-    }
-  }
 });
 </script>
 <datalist id="studentDatalist"></datalist>
