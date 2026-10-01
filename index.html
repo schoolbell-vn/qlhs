@@ -2033,15 +2033,31 @@ function getAuthQueryParams() {
 }
 
 function loadCloudDataViaJsonp() {
-  return new Promise((resolve, reject) => {
-    const cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-    const script = document.createElement("script");
+  return new Promise(async (resolve, reject) => {
+    var authParams = getAuthQueryParams();
+    var baseUrl = MASTER_APP_SCRIPT_URL + "?t=" + Date.now() + authParams;
+    
+    // ƯU TIÊN 1: DÙNG FETCH CHUẨN (Xử lý dữ liệu lớn siêu tốc trên Android, không bị giới hạn bộ nhớ)
+    try {
+      var res = await fetch(baseUrl, { method: 'GET', redirect: 'follow' });
+      if (res.ok) {
+        var data = await res.json();
+        return resolve(data);
+      }
+    } catch (fetchErr) {
+      console.warn("Mạng khắt khe chặn fetch, tự động chuyển sang JSONP dự phòng...");
+    }
+
+    // ƯU TIÊN 2: DÙNG JSONP (Dự phòng xuyên tường lửa khi fetch thất bại)
+    var cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    var script = document.createElement("script");
     script.async = true;
-    const timer = setTimeout(() => {
+    
+    var timer = setTimeout(function() {
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
       reject(new Error("Quá thời gian kết nối Đám mây"));
-    }, 15000);
+    }, 20000); // Tăng lên 20s cho mạng yếu
 
     window[cbName] = function(data) {
       clearTimeout(timer);
@@ -2054,11 +2070,10 @@ function loadCloudDataViaJsonp() {
       clearTimeout(timer);
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn kết nối"));
+      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn JSONP"));
     };
 
-    // Tăng cường mã chống Cache ngầm của Android và đưa script lên thẻ HEAD
-    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&nocache=" + Math.random() + "&t=" + Date.now();
+    script.src = baseUrl + "&callback=" + cbName;
     document.head.appendChild(script); 
   });
 }
@@ -2952,6 +2967,9 @@ async function handleLoginSubmit(e) {
     sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
     document.getElementById('loginScreen').style.display = 'none';
     setupUserSessionUI();
+    
+    // TỰ ĐỘNG ÉP TẢI DỮ LIỆU MỚI NHẤT SAU KHI ĐĂNG NHẬP THÀNH CÔNG
+    fetchDatabaseFromCloud(true); 
 
   } finally {
     if (submitBtn) {
