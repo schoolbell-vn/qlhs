@@ -1225,7 +1225,7 @@
     <!-- KHUNG ĐIỂM DANH TIẾN ĐỘ BÁO CÁO CỦA 36 CỜ ĐỎ & 36 SỔ ĐẦU BÀI -->
     <div class="card no-print" style="border-left: 5px solid #0d9488; margin-bottom: 1.25rem;">
       <div class="card-header" style="cursor:pointer;" onclick="const b = document.getElementById('checkinMatrixBodyBox'); b.style.display = b.style.display === 'none' ? 'block' : 'none';">
-        <h2>📋 ĐIỂM DANH TIẾN ĐỘ BÁO CÁO TUẦN CỦA 36 CỜ ĐỎ & 36 SỔ ĐẦU BÀI <span style="font-size:0.78rem; font-weight:normal; color:var(--text-muted);">(Bấm để Ẩn/Hiện)</span></h2>
+        <h2>📋 ĐIỂM DANH TIẾN ĐỘ BÁO CÁO TRONG NGÀY CỦA 36 CỜ ĐỎ & 36 SĐB <span style="font-size:0.78rem; font-weight:normal; color:var(--text-muted);">(Bấm để Ẩn/Hiện)</span></h2>
         <div style="display:flex; gap:0.5rem; align-items:center;">
           <span class="badge badge-success" id="checkinStatSdb">SĐB: 0/36</span>
           <span class="badge badge-info" id="checkinStatCodo">Cờ đỏ: 0/36</span>
@@ -1233,7 +1233,7 @@
       </div>
       <div class="card-body" id="checkinMatrixBodyBox" style="display:block;">
         <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">
-          Theo dõi theo thời gian thực của <strong>Tuần đang chọn trên Bảng Xếp Hạng</strong>. Lớp không có lỗi vẫn bắt buộc phải bấm <em>"Lưu SĐB"</em> hoặc <em>"Báo cáo không có lỗi (Cờ đỏ)"</em> để hệ thống ghi nhận điểm danh.
+          Theo dõi tiến độ báo cáo của <strong>NGÀY HÔM NAY</strong> (Danh sách sẽ tự động reset trắng khi sang ngày mới). Lớp không có lỗi vẫn bắt buộc phải bấm <em>"Lưu SĐB"</em> hoặc <em>"Báo cáo không có lỗi (Cờ đỏ)"</em> để ghi nhận điểm danh trong ngày.
         </p>
         <div id="checkinMissingSummary" style="margin-bottom:0.85rem; font-size:0.84rem; line-height:1.6;"></div>
         <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
@@ -5790,7 +5790,17 @@ function renderCheckinProgressMatrix() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  const wInfo = (typeof getSelectedBoardWeekInfo === 'function') ? getSelectedBoardWeekInfo() : { weekNum: 1, fromDate: '', toDate: '' };
+  // 1. LẤY MỐC THỜI GIAN CỦA NGÀY HÔM NAY ĐỂ RESET BÁO CÁO
+  const todayObj = new Date();
+  const yyyy = todayObj.getFullYear();
+  const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(todayObj.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`; // Dạng YYYY-MM-DD
+  
+  // Regex để quét định dạng ngày tháng tiếng Việt (tránh lỗi trên các trình duyệt khác nhau)
+  const dVN = todayObj.getDate();
+  const mVN = todayObj.getMonth() + 1;
+  const todayRegex = new RegExp(`(^|\\D)0?${dVN}\\/0?${mVN}\\/${yyyy}(\\D|$)`);
 
   let sdbDoneCount = 0;
   let codoDoneCount = 0;
@@ -5798,69 +5808,60 @@ function renderCheckinProgressMatrix() {
   let missingCodoClasses = [];
 
   CLASSES.forEach(c => {
-    // 1. Kiểm tra tiến độ Sổ Đầu Bài của lớp c.id trong tuần đang chọn
+    // 2. KIỂM TRA SỔ ĐẦU BÀI THEO NGÀY
     const sdb = sdbFullData[c.id] || {};
-    const hasAbsencesInWeek = (sdb.absences || []).some(a => 
-      (wInfo.fromDate && wInfo.toDate) ? (a.date >= wInfo.fromDate && a.date <= wInfo.toDate) : !a.isArchived
-    );
-    const hasModifiedLessonOrScore = Boolean(
-      (sdb.total && sdb.good !== undefined && sdb.good !== sdb.total) ||
-      sdb.fair > 0 || sdb.medium > 0 || sdb.weak > 0 || sdb.poor > 0 ||
-      sdb.goodScores > 0 || sdb.fairScores > 0 || sdb.medScores > 0 || sdb.poorScores > 0
-    );
-    const sdbReported = Boolean(
-      (sdb.isReportedThisWeek && (!sdb.reportedWeek || sdb.reportedWeek === wInfo.weekNum)) ||
-      hasAbsencesInWeek ||
-      hasModifiedLessonOrScore ||
-      (sdb.updatedBy && sdb.updatedBy !== 'Cán bộ SĐB lớp' && !String(sdb.updatedBy).includes('Hệ thống'))
-    );
+    
+    // SĐB báo cáo = Có bấm nút lưu trong ngày hôm nay HOẶC có nhập ngày nghỉ trùng hôm nay
+    const hasAbsencesToday = (sdb.absences || []).some(a => a.date === todayStr);
+    const isSavedToday = sdb.updatedAt && todayRegex.test(sdb.updatedAt);
+    const sdbReported = isSavedToday || hasAbsencesToday;
 
     if (sdbReported) sdbDoneCount++;
     else missingSdbClasses.push(c.id);
 
-    // 2. Kiểm tra tiến độ Cờ Đỏ chấm lớp c.id trong tuần đang chọn (Có nhập lỗi HOẶC bấm Báo cáo 0 vi phạm mã A00)
-    const codoLogsInWeek = violations.filter(v => {
+    // 3. KIỂM TRA CỜ ĐỎ THEO NGÀY (Chỉ lọc các bản ghi có Ngày vi phạm = Ngày hôm nay)
+    const codoLogsToday = violations.filter(v => {
       if (v.classId !== c.id || v.status === 'Đã hủy' || v.points > 0) return false;
-      if (v.isClassBonus && v.code !== 'A00') return false;
+      if (v.isClassBonus && v.code !== 'A00') return false; // Lọc bỏ điểm cộng, giữ lại điểm danh (A00)
       if (v.recorder && String(v.recorder).includes('TNXK')) return false;
-      if (wInfo.fromDate && wInfo.toDate) return v.date >= wInfo.fromDate && v.date <= wInfo.toDate;
-      return !v.isArchived;
+      return v.date === todayStr; // Điều kiện cốt lõi: Chỉ lấy của ngày hôm nay
     });
 
-    const codoReported = codoLogsInWeek.length > 0;
+    const codoReported = codoLogsToday.length > 0;
     if (codoReported) codoDoneCount++;
     else missingCodoClasses.push(c.id);
 
-    // Tìm xem tài khoản Cờ đỏ nào đang được phân công chấm lớp này
+    // Tìm xem tài khoản Cờ đỏ nào đang được phân công chấm lớp này để hiện tên
     const assignedCodoUser = systemUsers.find(u => u.role === 'codo' && Array.isArray(u.scope) && u.scope.includes(c.id));
     const assignedCodoName = assignedCodoUser ? assignedCodoUser.name : 'Chưa rõ Cờ đỏ';
 
+    // Xử lý huy hiệu (Badge)
     const sdbBadge = sdbReported
-      ? `<span class="badge badge-success">✅ Đã báo cáo</span>`
+      ? `<span class="badge badge-success">✅ Đã nộp (${dd}/${mm})</span>`
       : `<span class="badge badge-danger">⏳ Chưa nộp SĐB</span>`;
 
     const codoBadge = codoReported
-      ? `<span class="badge badge-success">✅ Đã báo cáo (${codoLogsInWeek.length})</span>`
+      ? `<span class="badge badge-success">✅ Đã báo cáo (${codoLogsToday.length})</span>`
       : `<span class="badge badge-warning">⏳ Chưa báo cáo</span>`;
 
-    const lastCodoLog = codoReported ? codoLogsInWeek[codoLogsInWeek.length - 1] : null;
+    const lastCodoLog = codoReported ? codoLogsToday[codoLogsToday.length - 1] : null;
 
-      let sdbInfo = '<em style="color:var(--danger);">Chưa bấm lưu</em>';
-      if (sdbReported) {
-        let uBy = sdb.updatedBy ? sdb.updatedBy : 'Đã lưu';
-        let uAt = sdb.updatedAt ? sdb.updatedAt : '';
-        sdbInfo = uBy + ' (' + uAt + ')';
-      }
+    let sdbInfo = '<em style="color:var(--danger);">Hôm nay chưa bấm lưu</em>';
+    if (sdbReported) {
+      let uBy = sdb.updatedBy ? sdb.updatedBy : 'Đã lưu';
+      let uAt = sdb.updatedAt ? sdb.updatedAt : '';
+      sdbInfo = uBy + ' (' + uAt + ')';
+    }
 
-      let codoInfo = '<em style="color:#b45309;">Chờ [' + assignedCodoName + ']</em>';
-      if (codoReported && lastCodoLog) {
-        codoInfo = lastCodoLog.recorder + ' (' + lastCodoLog.date + ')';
-      }
+    let codoInfo = '<em style="color:#b45309;">Chờ [' + assignedCodoName + ']</em>';
+    if (codoReported && lastCodoLog) {
+      codoInfo = lastCodoLog.recorder + ' (Lúc báo: ' + lastCodoLog.date + ')';
+    }
 
-      const detailText = `
-        <span style="margin-right:1rem;">📖 <strong>SĐB:</strong> ${sdbInfo}</span>
-        <span>🚩 <strong>Cờ đỏ:</strong> ${codoInfo}</span>
-      `;
+    const detailText = `
+      <span style="margin-right:1rem;">📖 <strong>SĐB:</strong> ${sdbInfo}</span>
+      <span>🚩 <strong>Cờ đỏ:</strong> ${codoInfo}</span>
+    `;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -5872,21 +5873,22 @@ function renderCheckinProgressMatrix() {
     tbody.appendChild(tr);
   });
 
+  // TỔNG KẾT DỮ LIỆU
   if (document.getElementById('checkinStatSdb')) {
-    document.getElementById('checkinStatSdb').textContent = `SĐB đã nộp: ${sdbDoneCount}/${CLASSES.length}`;
+    document.getElementById('checkinStatSdb').textContent = `SĐB đã nộp hôm nay: ${sdbDoneCount}/${CLASSES.length}`;
   }
   if (document.getElementById('checkinStatCodo')) {
-    document.getElementById('checkinStatCodo').textContent = `Cờ đỏ đã báo cáo: ${codoDoneCount}/${CLASSES.length}`;
+    document.getElementById('checkinStatCodo').textContent = `Cờ đỏ đã báo hôm nay: ${codoDoneCount}/${CLASSES.length}`;
   }
 
   if (missingBox) {
     missingBox.innerHTML = `
       <div style="background:#fef2f2; border:1px solid #fecaca; padding:0.5rem 0.75rem; border-radius:6px; margin-bottom:0.4rem; color:#991b1b;">
-        <strong>🚨 Các lớp CHƯA NỘP Sổ Đầu Bài (${missingSdbClasses.length} lớp):</strong> 
+        <strong>🚨 Các lớp CHƯA NỘP Sổ Đầu Bài ngày hôm nay (${missingSdbClasses.length} lớp):</strong> 
         ${missingSdbClasses.length > 0 ? missingSdbClasses.join(', ') : '<span style="color:var(--success); font-weight:bold;">🎉 Đã nộp đủ 100%!</span>'}
       </div>
       <div style="background:#fffbeb; border:1px solid #fde68a; padding:0.5rem 0.75rem; border-radius:6px; color:#92400e;">
-        <strong>🚩 Các lớp Cờ Đỏ CHƯA BÁO CÁO (${missingCodoClasses.length} lớp):</strong> 
+        <strong>🚩 Các lớp Cờ Đỏ CHƯA BÁO CÁO ngày hôm nay (${missingCodoClasses.length} lớp):</strong> 
         ${missingCodoClasses.length > 0 ? missingCodoClasses.join(', ') : '<span style="color:var(--success); font-weight:bold;">🎉 Đã báo cáo đủ 100%!</span>'}
       </div>
     `;
