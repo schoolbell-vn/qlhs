@@ -398,7 +398,6 @@
     </div>
     <button class="btn btn-outline btn-sm" id="btnChangeMyPass" onclick="openChangePassModal(false)" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔑 Đổi MK</button>
     <button class="btn btn-outline btn-sm" id="btnMqttServer" onclick="if(loggedUser && loggedUser.role==='admin') document.getElementById('mqttModal').style.display='flex'" style="display:none; background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.5rem; border-radius:6px; cursor:pointer; font-weight:600;">⚙️ Máy chủ</button>
-    <button class="btn btn-outline btn-sm" id="btnForceSync" onclick="fetchDatabaseFromCloud(true)" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600;">🔄 Làm mới</button>
     <button class="btn-logout" onclick="logout()">Đăng Xuất</button>
   </div>
 </header>
@@ -2037,7 +2036,6 @@ function loadCloudDataViaJsonp() {
     const cbName = "ykaCloudCb_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     const script = document.createElement("script");
     script.async = true;
-    
     const timer = setTimeout(() => {
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
@@ -2055,12 +2053,13 @@ function loadCloudDataViaJsonp() {
       clearTimeout(timer);
       delete window[cbName];
       if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error("Lỗi mạng hoặc Trình duyệt chặn kết nối"));
+      reject(new Error("Lỗi tải script JSONP"));
     };
 
-    // Khôi phục luồng JSONP siêu tốc nguyên bản, chỉ thêm biến nocache=Math.random() để ép điện thoại Android không được dùng dữ liệu cũ
-    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&nocache=" + Math.random() + "&t=" + Date.now();
-    document.head.appendChild(script); 
+    // Đã thêm mã ngẫu nhiên UUID để ép Android tải lại 100%
+    const randomBuster = Math.random().toString(36).substring(2, 15);
+    script.src = MASTER_APP_SCRIPT_URL + "?callback=" + cbName + getAuthQueryParams() + "&_req=" + randomBuster + "&t=" + Date.now();
+    document.body.appendChild(script);
   });
 }
 
@@ -2071,13 +2070,6 @@ async function fetchDatabaseFromCloud(force = false) {
 
   isFetchingCloud = true;
   lastCloudFetchTime = now;
-
-  // Đổi trạng thái nút bấm để người dùng biết đang tải
-  const btnSync = document.getElementById('btnForceSync');
-  if (btnSync) {
-    btnSync.innerHTML = "⏳ Đang tải...";
-    btnSync.disabled = true;
-  }
 
   try {
     const db = await loadCloudDataViaJsonp();
@@ -2196,24 +2188,10 @@ if (db.users && Array.isArray(db.users) && db.users.length > 1) {
     
     refreshStudentDatalists();
     
-    // Nếu tải xong mà là người dùng chủ động bấm nút thì báo thành công
-    if (force && btnSync) {
-      btnSync.innerHTML = "✅ Xong!";
-      setTimeout(() => { btnSync.innerHTML = "🔄 Làm mới"; }, 2000);
-    }
-    
   } catch (error) {
     console.warn("Lỗi kết nối:", error);
-    // HIỂN THỊ CẢNH BÁO LÊN MÀN HÌNH NẾU ĐIỆN THOẠI CHẶN KẾT NỐI
-    if (force) {
-      alert("⚠️ ĐIỆN THOẠI CHẶN KẾT NỐI!\nTrình duyệt trên điện thoại của bạn đang ngăn chặn hệ thống tải dữ liệu từ Google Drive.\n\nVui lòng thử:\n1. Tắt tính năng 'Tiết kiệm dữ liệu' (Data Saver/Lite mode)\n2. Tắt chặn Cookie bên thứ 3 trong cài đặt trình duyệt\n3. Hoặc dùng trình duyệt Chrome/Safari chuẩn thay vì trình duyệt Zalo/Facebook.");
-    }
   } finally {
     isFetchingCloud = false;
-    if (btnSync && btnSync.innerHTML !== "✅ Xong!") {
-      btnSync.innerHTML = "🔄 Làm mới";
-      btnSync.disabled = false;
-    }
   }
 }
 
@@ -2953,9 +2931,6 @@ async function handleLoginSubmit(e) {
     sessionStorage.setItem('yka_current_user_v1', JSON.stringify(loggedUser));
     document.getElementById('loginScreen').style.display = 'none';
     setupUserSessionUI();
-    
-    // TỰ ĐỘNG ÉP TẢI DỮ LIỆU MỚI NHẤT SAU KHI ĐĂNG NHẬP THÀNH CÔNG
-    fetchDatabaseFromCloud(true); 
 
   } finally {
     if (submitBtn) {
@@ -5578,8 +5553,12 @@ function renderCodoLogsTable() {
 
         ${
           v.imageEvidence
-            ? `<div style="margin-top:0.35rem;">
-                 <button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button>
+            ? `<div style="margin-top:0.25rem;">
+                 <img
+                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
+                   class="evidence-img-thumb"
+                   onclick="openImgModal('${v.imageEvidence}')"
+                   title="Xem ảnh">
                </div>`
             : ''
         }
@@ -5714,10 +5693,14 @@ function renderTnxkLogsTable() {
             : ''
         }
 
-       ${
+        ${
           v.imageEvidence
-            ? `<div style="margin-top:0.35rem;">
-                 <button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button>
+            ? `<div style="margin-top:0.25rem;">
+                 <img
+                   src="${getDirectDriveImgUrl(v.imageEvidence)}"
+                   class="evidence-img-thumb"
+                   onclick="openImgModal('${v.imageEvidence}')"
+                   title="Xem ảnh">
                </div>`
             : ''
         }
@@ -5947,7 +5930,7 @@ function renderReviewTable() {
       <td style="font-size:0.8rem;">
         <div>${v.evidence}</div>
         ${v.linkEvidence ? `<div style="margin-top:0.25rem;"><a href="${v.linkEvidence}" target="_blank" style="color:var(--primary-light); font-weight:600;">🔗 Link Minh Chứng</a></div>` : ''}
-        ${v.imageEvidence ? `<div style="margin-top:0.35rem;"><button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.5rem; color:var(--primary); border-color:#bfdbfe; font-weight:600;" onclick="openImgModal('${v.imageEvidence}')">🖼️ Bấm xem ảnh</button></div>` : ''}
+        ${v.imageEvidence ? `<div style="margin-top:0.25rem;"><img src="${getDirectDriveImgUrl(v.imageEvidence)}" class="evidence-img-thumb" onclick="openImgModal('${v.imageEvidence}')" title="Bấm để phóng to ảnh" onerror="this.style.display='none'"> <a href="${v.imageEvidence}" target="_blank" style="font-size:0.75rem; color:var(--primary-light); font-weight:600; display:inline-block;">🔍 Xem ảnh</a></div>` : ''}
       </td>
       <td style="font-size:0.8rem;">${v.recorder}</td>
       <td style="text-align:center;"><span class="badge ${v.status === 'Đã duyệt' ? 'badge-success' : 'badge-warning'}">${v.status || 'Chờ duyệt'}</span></td>
@@ -8481,6 +8464,15 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('focus', () => {
   fetchDatabaseFromCloud();
+});
+// Tự động tải lại dữ liệu khi điện thoại thoát khỏi chế độ ngủ hoặc chuyển tab
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    // Chỉ tự động fetch nếu đã đăng nhập và cách lần cuối ít nhất 5 giây
+    if (loggedUser && (Date.now() - lastCloudFetchTime > 5000)) {
+      fetchDatabaseFromCloud(true);
+    }
+  }
 });
 </script>
 <datalist id="studentDatalist"></datalist>
