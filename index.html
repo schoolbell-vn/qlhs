@@ -2176,7 +2176,7 @@ if (db.users && Array.isArray(db.users) && db.users.length > 1) {
       // Nếu trên Đám mây chưa có hoặc bị lỗi rỗng, tự động tạo mới đủ tài khoản và đẩy lên Đám mây
       if (!systemUsers || systemUsers.length <= 1) {
         systemUsers = generateDefaultUsers();
-        updateUsersLocalAndCloud();
+        //updateUsersLocalAndCloud();
       }
     }
 
@@ -5044,19 +5044,44 @@ async function syncDataToCloud(fileName, content) {
 }
 
 // Gửi lẻ 1 biên bản mới (Chống mất biên bản khi Cờ đỏ & TNXK chấm đồng loạt)
+// HÀM LƯU BIÊN BẢN CÓ KIỂM CHỨNG KÉP (CHỐNG VĂNG DỮ LIỆU KHI DÙNG NO-CORS)
 async function appendSingleViolationToCloud(newRecord) {
+  // 1. Luôn lưu nháp vào máy cục bộ
   localStorage.setItem('yka_violations_v1', JSON.stringify(violations));
+  
   try {
+    // 2. Gửi lệnh qua no-cors để vượt tường lửa
     await fetch(MASTER_APP_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "append_violation", record: newRecord }))
     });
-  } catch(e) { console.error("Lỗi lưu biên bản lẻ:", e); }
+
+    // 3. KIỂM CHỨNG LẠI SAU 4 GIÂY: Dùng JSONP (cũng vượt tường lửa) để check Server
+    setTimeout(async () => {
+      try {
+        const db = await loadCloudDataViaJsonp();
+        if (db && db.violations) {
+          // Đối chiếu xem Google Drive đã thực sự GHI THÀNH CÔNG ID biên bản này chưa
+          const existsOnServer = db.violations.some(v => String(v.id) === String(newRecord.id));
+          if (!existsOnServer) {
+            alert(`⚠️ MẠNG QUÁ TẢI (Nhiều người nộp cùng lúc)!\n\nBiên bản [${newRecord.name}] của Lớp ${newRecord.classId} CHƯA được đẩy lên hệ thống.\n\nDữ liệu nháp vẫn còn trên máy của bạn, vui lòng đợi 1 phút và BẤM LƯU LẠI!`);
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Chưa thể kiểm chứng ngay lúc này do mạng chậm.");
+      }
+    }, 4000); // Đợi 4 giây cho quá trình xếp hàng bên Google hoàn tất
+
+  } catch(e) { 
+    console.error("Lỗi mạng khi lưu biên bản:", e); 
+    alert("❌ Không có kết nối mạng! Biên bản đã được lưu tạm trên máy này.");
+  }
 }
 
 // Gửi lẻ Sổ đầu bài của 1 lớp (Chỉ đúng SĐB lớp đó hoặc Admin mới lưu được trên Server)
+// HÀM LƯU SỔ ĐẦU BÀI CÓ KIỂM CHỨNG KÉP (CHỐNG VĂNG DỮ LIỆU)
 async function updateSingleClassSdbToCloud(classId, classData) {
   localStorage.setItem('yka_sdb_full_v1', JSON.stringify(sdbFullData));
   try {
@@ -5066,7 +5091,27 @@ async function updateSingleClassSdbToCloud(classId, classData) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "update_single_sdb", classId: classId, classData: classData }))
     });
-  } catch(e) { console.error("Lỗi lưu SĐB lẻ:", e); }
+
+    // Kiểm chứng sau 4 giây
+    setTimeout(async () => {
+      try {
+        const db = await loadCloudDataViaJsonp();
+        if (db && db.sdb && db.sdb[classId]) {
+          const serverSdb = db.sdb[classId];
+          // Nếu thời gian cập nhật trên Server không khớp với thời gian vừa đẩy lên -> Bị văng
+          if (serverSdb.updatedAt !== classData.updatedAt) {
+            alert(`⚠️ MẠNG QUÁ TẢI (Nhiều người nộp cùng lúc)!\n\nDữ liệu Sổ đầu bài Lớp ${classId} CHƯA được đẩy lên hệ thống.\nVui lòng đợi vài giây và bấm [Lưu Toàn Bộ Dữ Liệu] lại lần nữa!`);
+          }
+        }
+      } catch (e) {
+        console.warn("Chưa thể kiểm chứng SĐB ngay lập tức.");
+      }
+    }, 4000);
+
+  } catch(e) { 
+    console.error("Lỗi lưu SĐB:", e); 
+    alert("❌ Lỗi kết nối mạng! Vui lòng thử bấm lưu lại.");
+  }
 }
 
 // Gửi lẻ 1 mật khẩu vừa đổi (Phải khớp mật khẩu cũ trên Server mới cho đổi)
