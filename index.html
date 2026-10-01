@@ -2312,6 +2312,12 @@ async function saveRulesToCloud() {
     
     initRuleSelects(); 
     
+    // --- THÊM DÒNG NÀY ĐỂ BÁO TÍN HIỆU CHO TẤT CẢ CÁC MÁY KHÁC (ĐỒNG BỘ 0.1 GIÂY) ---
+    if (typeof publishUpdate === 'function') {
+      publishUpdate('UPDATE_RULES', RULES);
+    }
+    // --------------------------------------------------------------------------------
+    
     if (btn) {
       btn.innerHTML = "✅ ĐÃ LƯU LÊN ĐÁM MÂY THÀNH CÔNG!";
       btn.style.backgroundColor = "var(--success)";
@@ -2728,8 +2734,20 @@ function connectMqtt() {
             }
           }
         }
+        // --- THÊM KHỐI NÀY ĐỂ NHẬN TIÊU CHÍ MỚI VÀ CẬP NHẬT NGAY TRÊN MÀN HÌNH ---
+        else if (payload.action === 'UPDATE_RULES') {
+          if (payload.data) {
+            RULES = payload.data;
+            localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
+            initRuleSelects();
+            if (typeof renderRulesConfigTable === 'function') {
+              renderRulesConfigTable();
+            }
+          }
+        }
+        // -------------------------------------------------------------------------
         else if (payload.action === 'SYNC_HISTORY_STATE') {
-          // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
+        // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
           if (Array.isArray(payload.data.history)) {
             weeklyHistory = payload.data.history;
             localStorage.setItem('yka_history_v1', JSON.stringify(weeklyHistory));
@@ -3305,6 +3323,12 @@ async function saveConductConfigToCloud() {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(attachAuthCredentials({ action: "save_data", fileName: "db_tabs.json", content: TABS_CONFIG }))
     });
+
+    // --- THÊM DÒNG NÀY ĐỂ BÁO TÍN HIỆU CHO TẤT CẢ CÁC MÁY KHÁC ---
+    if (typeof publishUpdate === 'function') {
+      publishUpdate('UPDATE_TABS_CONFIG', TABS_CONFIG);
+    }
+    // -------------------------------------------------------------
 
     if (typeof renderHk1SummaryTable === 'function') renderHk1SummaryTable();
 
