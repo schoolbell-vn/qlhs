@@ -2419,6 +2419,7 @@ function saveRuleConfig() {
   }
   
   renderRulesConfigTable();
+  saveRulesToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG LƯU KHI THÊM/SỬA
 }
 
 // Hàm 4: Kích hoạt chế độ Sửa (Đổ dữ liệu lên form)
@@ -2453,6 +2454,7 @@ function deleteRule(code) {
   if (confirm(`Bạn có chắc muốn xóa tiêu chí [${code}] khỏi hệ thống?`)) {
     RULES = RULES.filter(r => r.code !== code);
     renderRulesConfigTable();
+    saveRulesToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG XÓA TRÊN ĐÁM MÂY
   }
 }
 // 3. TẠO HỆ THỐNG TÀI KHOẢN (ẨN MẬT KHẨU ADMIN CHỐNG F12, NHƯNG GIỮ ĐĂNG NHẬP MƯỢT CHO HỌC SINH)
@@ -3259,6 +3261,7 @@ function saveConductRuleItem() {
   }
 
   renderConductRulesTable();
+  saveConductConfigToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG LƯU
 }
 
 function editConductRuleItem(code) {
@@ -3290,6 +3293,7 @@ function deleteConductRuleItem(code) {
   if (confirm(`Bạn có chắc muốn xóa tiêu chí khống chế [${code}]?`)) {
     CONDUCT_CONFIG.rules = CONDUCT_CONFIG.rules.filter(r => r.code !== code);
     renderConductRulesTable();
+    saveConductConfigToCloud(); // <-- Thêm dòng này để TỰ ĐỘNG XÓA
   }
 }
 
