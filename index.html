@@ -634,24 +634,27 @@
           </div>
           <div class="form-grid">
             <div class="form-group">
-              <label>Số lượt ĐIỂM GIỎI (Điểm 9 - 10):</label>
+              <label>Số lượt ĐIỂM GIỎI (Các môn BÌNH THƯỜNG):</label>
               <input type="number" id="sdbCountGoodScores" min="0" value="15" onchange="recalcSdbFull()" style="font-weight:bold; color:var(--success);">
-              <span style="font-size:0.75rem; color:var(--success);">Khích lệ phong trào hoa điểm tốt (+1 đ/lượt)</span>
+              <span id="lblGoodBonus" style="font-size:0.75rem; color:var(--success);">Khích lệ phong trào (+1 đ/lượt)</span>
+            </div>
+            <div class="form-group">
+              <label>Số lượt ĐIỂM GIỎI (Môn GVCN dạy):</label>
+              <input type="number" id="sdbCountGvcnScores" min="0" value="0" onchange="recalcSdbFull()" style="font-weight:bold; color:var(--primary-light);">
+              <span id="lblGvcnBonus" style="font-size:0.75rem; color:var(--primary-light);">Tối đa cộng 3 lượt/tuần</span>
             </div>
             <div class="form-group">
               <label>Số lượt ĐIỂM KHÁ (Điểm 7 - 8):</label>
               <input type="number" id="sdbCountFairScores" min="0" value="25" onchange="recalcSdbFull()">
-              <span style="font-size:0.75rem; color:var(--text-muted);">Đạt chuẩn nề nếp học tập (0 đ)</span>
             </div>
             <div class="form-group">
               <label>Số lượt ĐIỂM TRUNG BÌNH (Điểm 5 - 6):</label>
               <input type="number" id="sdbCountMedScores" min="0" value="8" onchange="recalcSdbFull()">
-              <span style="font-size:0.75rem; color:var(--text-muted);">Nhắc nhở ôn bài (0 đ)</span>
             </div>
             <div class="form-group">
               <label>Số lượt ĐIỂM YẾU / KÉM (Dưới 5):</label>
               <input type="number" id="sdbCountPoorScores" min="0" value="1" onchange="recalcSdbFull()" style="font-weight:bold; color:var(--danger);">
-              <span style="font-size:0.75rem; color:var(--danger);">Trừ thi đua học tập (-2 đ/lượt)</span>
+              <span id="lblPoorPenalty" style="font-size:0.75rem; color:var(--danger);">Trừ thi đua học tập (-2 đ/lượt)</span>
             </div>
           </div>
         </div>
@@ -1625,7 +1628,26 @@
             </div>
           </div>
         </div>
-
+        <!-- MỤC MỚI: CẤU HÌNH ĐIỂM SỐ HỌC TẬP (SĐB) -->
+        <div class="sub-box">
+          <div class="sub-box-title">
+            <span>CẤU HÌNH ĐIỂM SỐ HỌC TẬP & MỨC TRẦN MÔN GVCN (SĐB)</span>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Điểm cộng cho 1 lượt Điểm Tốt/Giỏi:</label>
+              <input type="number" id="cfg_scoreGoodBonus" step="0.5" value="1" style="font-weight:bold; color:var(--success);">
+            </div>
+            <div class="form-group">
+              <label>Điểm trừ cho 1 lượt Điểm Kém/Yếu:</label>
+              <input type="number" id="cfg_scorePoorPenalty" step="0.5" value="2" style="font-weight:bold; color:var(--danger);">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Mức trần cộng điểm môn GVCN dạy (Tối đa lượt/tuần):</label>
+              <input type="number" id="cfg_maxGvcnBonus" min="0" value="3" style="font-weight:bold; color:var(--primary);">
+            </div>
+          </div>
+        </div>
         <!-- MỤC 2: THÊM / SỬA TIÊU CHÍ KHỐNG CHẾ HẠNH KIỂM (GIỐNG CẤU HÌNH TIÊU CHÍ ĐIỂM) -->
         <div class="sub-box">
           <div class="sub-box-title">
@@ -3182,6 +3204,9 @@ function isDateInSelectedTerm(dateStr, term) {
 
 // ==================== CẤU HÌNH ĐỘNG & TỔNG HỢP RÈN LUYỆN CÁ NHÂN (HK1, HK2, CẢ NĂM) ====================
 const DEFAULT_CONDUCT_CONFIG = {
+  scoreGoodBonus: 1,
+  scorePoorPenalty: 2,
+  maxGvcnBonus: 3,
   calcMethod: 'TOTAL_TERM', // Trừ trực tiếp trên Quỹ điểm 100 của Học kỳ (Rõ ràng, không bị ảo điểm)
   weeklyBaseScore: 100,
   weeksHk1: 18,
@@ -3240,6 +3265,9 @@ function onCondMetricChange() {
 }
 
 function renderConductConfigForm() {
+  document.getElementById('cfg_scoreGoodBonus').value = CONDUCT_CONFIG.scoreGoodBonus ?? 1;
+  document.getElementById('cfg_scorePoorPenalty').value = CONDUCT_CONFIG.scorePoorPenalty ?? 2;
+  document.getElementById('cfg_maxGvcnBonus').value = CONDUCT_CONFIG.maxGvcnBonus ?? 3;
   document.getElementById('cfg_calcMethod').value = CONDUCT_CONFIG.calcMethod || 'AVG_WEEK';
   document.getElementById('cfg_weeklyBaseScore').value = CONDUCT_CONFIG.weeklyBaseScore ?? 100;
   document.getElementById('cfg_weeksHk1').value = CONDUCT_CONFIG.weeksHk1 ?? 18;
@@ -3358,6 +3386,9 @@ function deleteConductRuleItem(code) {
 }
 
 async function saveConductConfigToCloud() {
+  CONDUCT_CONFIG.scoreGoodBonus = parseFloat(document.getElementById('cfg_scoreGoodBonus').value) || 1;
+  CONDUCT_CONFIG.scorePoorPenalty = parseFloat(document.getElementById('cfg_scorePoorPenalty').value) || 2;
+  CONDUCT_CONFIG.maxGvcnBonus = parseInt(document.getElementById('cfg_maxGvcnBonus').value) || 3;
   CONDUCT_CONFIG.calcMethod = document.getElementById('cfg_calcMethod').value;
   CONDUCT_CONFIG.weeklyBaseScore = parseFloat(document.getElementById('cfg_weeklyBaseScore').value) || 100;
   CONDUCT_CONFIG.weeksHk1 = parseInt(document.getElementById('cfg_weeksHk1').value) || 18;
@@ -4310,6 +4341,12 @@ function setupSdbForm() {
   document.getElementById('sdbPoorInput').value = data.poor;
 
   document.getElementById('sdbCountGoodScores').value = data.goodScores || 0;
+  document.getElementById('sdbCountGvcnScores').value = data.gvcnScores || 0;
+  
+  const cfg = CONDUCT_CONFIG || {};
+  document.getElementById('lblGoodBonus').textContent = `Khích lệ phong trào (+${cfg.scoreGoodBonus ?? 1} đ/lượt)`;
+  document.getElementById('lblGvcnBonus').textContent = `Tối đa cộng ${cfg.maxGvcnBonus ?? 3} lượt/tuần (+${cfg.scoreGoodBonus ?? 1} đ/lượt)`;
+  document.getElementById('lblPoorPenalty').textContent = `Trừ thi đua học tập (-${cfg.scorePoorPenalty ?? 2} đ/lượt)`;
   document.getElementById('sdbCountFairScores').value = data.fairScores || 0;
   document.getElementById('sdbCountMedScores').value = data.medScores || 0;
   document.getElementById('sdbCountPoorScores').value = data.poorScores || 0;
@@ -4411,9 +4448,17 @@ function recalcSdbFull() {
       let absencePenalty = 0;
       (data.absences || []).filter(a => !a.isArchived).forEach(a => absencePenalty += Math.abs(a.point));
 
+      const cfg = (typeof CONDUCT_CONFIG !== 'undefined') ? CONDUCT_CONFIG : {};
+      const goodPt = cfg.scoreGoodBonus !== undefined ? cfg.scoreGoodBonus : 1;
+      const poorPt = cfg.scorePoorPenalty !== undefined ? cfg.scorePoorPenalty : 2;
+      const maxGvcn = cfg.maxGvcnBonus !== undefined ? cfg.maxGvcnBonus : 3;
+
       const goodCount = parseInt(document.getElementById('sdbCountGoodScores').value) || 0;
+      const gvcnCount = parseInt(document.getElementById('sdbCountGvcnScores').value) || 0;
       const poorCount = parseInt(document.getElementById('sdbCountPoorScores').value) || 0;
-      const academicBalance = (goodCount * 1) - (poorCount * 2);
+      
+      const validGvcnCount = Math.min(gvcnCount, maxGvcn);
+      const academicBalance = (goodCount * goodPt) + (validGvcnCount * goodPt) - (poorCount * poorPt);
 
       document.getElementById('sdbLiveHourPenalty').textContent = hourPenalty > 0 ? `-${hourPenalty} đ` : '0 đ';
       document.getElementById('sdbLiveHourBonus').textContent = hourBonus > 0 ? `+${hourBonus} đ` : '0 đ';
@@ -4477,6 +4522,7 @@ function saveFullSdbData() {
       sdbFullData[targetClass].weak = weak;
       sdbFullData[targetClass].poor = poor;
       sdbFullData[targetClass].goodScores = goodScores;
+      sdbFullData[targetClass].gvcnScores = parseInt(document.getElementById('sdbCountGvcnScores').value) || 0;
       sdbFullData[targetClass].fairScores = fairScores;
       sdbFullData[targetClass].medScores = medScores;
       sdbFullData[targetClass].poorScores = poorScores;
@@ -4677,24 +4723,28 @@ function computeClassScoreItem(c, fromDate, toDate, sdbSourceObj) {
     total: 30, good: 30, fair: 0, medium: 0, weak: 0, poor: 0, absences: [], goodScores: 0, poorScores: 0
   };
   const sdbHourPenalty = (sdb.fair * 1) + (sdb.medium * 3) + (sdb.weak * 5) + (sdb.poor * 7);
-  const sdbPoorScorePenalty = (sdb.poorScores || 0) * 2;
+  const cfg = (typeof CONDUCT_CONFIG !== 'undefined') ? CONDUCT_CONFIG : {};
+  const goodPt = cfg.scoreGoodBonus !== undefined ? cfg.scoreGoodBonus : 1;
+  const poorPt = cfg.scorePoorPenalty !== undefined ? cfg.scorePoorPenalty : 2;
+  const maxGvcn = cfg.maxGvcnBonus !== undefined ? cfg.maxGvcnBonus : 3;
+
+  const sdbPoorScorePenalty = (sdb.poorScores || 0) * poorPt;
 
   let sdbAbsencePenalty = 0;
   let unexcusedCount = 0;
   const fullSdbClass = sdbFullData[c.id] || sdb;
   (fullSdbClass.absences || []).filter(a => {
-    if (fromDate && toDate) {
-      return a.date >= fromDate && a.date <= toDate;
-    }
+    if (fromDate && toDate) return a.date >= fromDate && a.date <= toDate;
     return !a.isArchived;
   }).forEach(a => {
     sdbAbsencePenalty += Math.abs(a.point);
     if (a.type === 'A02') unexcusedCount++;
   });
 
-  const sdbGoodScoreBonus = (sdb.goodScores || 0) * 1;
+  const validGvcn = Math.min((sdb.gvcnScores || 0), maxGvcn);
+  const sdbGoodScoreBonus = ((sdb.goodScores || 0) + validGvcn) * goodPt;
   const sdbHourBonus = (sdb.good === sdb.total && sdb.total > 0) ? 20 : 0;
-
+  
   const totalDeductions = parseFloat((codoPenalties + sdbHourPenalty + sdbPoorScorePenalty + sdbAbsencePenalty).toFixed(1));
   const totalAdditions = parseFloat((personalBonus + classBonus + sdbGoodScoreBonus + sdbHourBonus).toFixed(1));
   const remainingPenalty = parseFloat((totalDeductions - totalAdditions).toFixed(1));
