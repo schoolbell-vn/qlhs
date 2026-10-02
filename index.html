@@ -2739,6 +2739,15 @@ function connectMqtt() {
           if (payload.data) {
             TABS_CONFIG = payload.data;
             localStorage.setItem('yka_tabs_config_v1', JSON.stringify(TABS_CONFIG));
+            
+            // --- BẮT ĐẦU ĐOẠN SỬA CHỮA: ĐỒNG BỘ CẤU HÌNH XẾP LOẠI HẠNH KIỂM ---
+            if (TABS_CONFIG.conductConfig) {
+              CONDUCT_CONFIG = TABS_CONFIG.conductConfig;
+              localStorage.setItem('yka_conduct_config_v1', JSON.stringify(CONDUCT_CONFIG));
+              if (typeof renderConductConfigForm === 'function') renderConductConfigForm();
+            }
+            // --- KẾT THÚC ĐOẠN SỬA CHỮA ---
+
             if (loggedUser && loggedUser.role === 'admin' && typeof renderTabsConfigMatrix === 'function') {
               renderTabsConfigMatrix();
             } else if (loggedUser) {
@@ -2746,6 +2755,16 @@ function connectMqtt() {
             }
           }
         }
+        // --- BẮT ĐẦU ĐOẠN SỬA CHỮA: ĐỒNG BỘ TIÊU CHÍ ĐIỂM (CỜ ĐỎ/TNXK/BCH) ---
+        else if (payload.action === 'UPDATE_RULES') {
+          if (payload.data) {
+            RULES = payload.data;
+            localStorage.setItem('yka_rules_v1', JSON.stringify(RULES));
+            if (typeof initRuleSelects === 'function') initRuleSelects();
+            if (typeof renderRulesConfigTable === 'function') renderRulesConfigTable();
+          }
+        }
+        // --- KẾT THÚC ĐOẠN SỬA CHỮA ---
         else if (payload.action === 'SYNC_HISTORY_STATE') {
           // Nhận đồng bộ tức thời khi một máy Admin khác Chốt tuần hoặc Xóa/Hoàn tác tuần
           if (Array.isArray(payload.data.history)) {
