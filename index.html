@@ -5163,7 +5163,7 @@ async function appendSingleViolationToCloud(newRecord) {
       } catch (checkErr) {
         console.warn("Chưa thể kiểm chứng ngay lúc này do mạng chậm.");
       }
-    }, 4000); // Đợi 4 giây cho quá trình xếp hàng bên Google hoàn tất
+    }, 10000); // Đợi 4 giây cho quá trình xếp hàng bên Google hoàn tất
 
   } catch(e) { 
     console.error("Lỗi mạng khi lưu biên bản:", e); 
@@ -5197,7 +5197,7 @@ async function updateSingleClassSdbToCloud(classId, classData) {
       } catch (e) {
         console.warn("Chưa thể kiểm chứng SĐB ngay lập tức.");
       }
-    }, 4000);
+    }, 10000);
 
   } catch(e) { 
     console.error("Lỗi lưu SĐB:", e); 
