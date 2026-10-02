@@ -2,6 +2,11 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
+<!-- BẮT ĐẦU: Code chống lưu cache của trình duyệt -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- KẾT THÚC: Code chống lưu cache -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>THI ĐUA YÊN KHÁNH A</title>
 <meta name="application-name" content="THI ĐUA YÊN KHÁNH A">
@@ -345,6 +350,31 @@
     background: white !important;
     color: var(--danger) !important;
   }
+  /* BẮT ĐẦU: Nút Làm mới dành riêng cho Mobile */
+  @media (min-width: 769px) {
+    .mobile-only-refresh { 
+      display: none !important; /* Máy tính: Giấu đi */
+    }
+  }
+  @media (max-width: 768px) {
+    .mobile-only-refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(255,255,255,0.25);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.5);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .mobile-only-refresh:active {
+      background: rgba(255,255,255,0.4);
+    }
+  }
 </style>
 </head>
 <body>
@@ -392,6 +422,9 @@
   </div>
 
   <div class="user-badge-bar">
+    <button id="btnMobileRefresh" class="mobile-only-refresh" onclick="forceMobileRefresh()">
+      🔄 Làm mới
+    </button>
     <div class="user-info">
       <span class="user-name" id="topBarUserName">Chưa đăng nhập</span>
       <span class="user-role-label" id="topBarUserRole">--</span>
@@ -2222,6 +2255,15 @@ function refreshStudentDatalists() {
 window.addEventListener('load', () => {
   setTimeout(() => fetchDatabaseFromCloud(true), 300);
 });
+// --- BẮT ĐẦU: Code đánh thức dữ liệu khi trình duyệt bị đóng băng (Samsung/Safari) ---
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Khi người dùng bật màn hình điện thoại lên, hoặc chuyển lại vào Tab này
+    // Bỏ qua mọi bộ nhớ đệm, tự động kết nối lên Google Drive kéo dữ liệu mới nhất về
+    fetchDatabaseFromCloud(true);
+  }
+});
+// --- KẾT THÚC ---
 // ======================================================================
 function updateStudentDatalist(selectedClassId) {
   const dl = document.getElementById('studentDatalist');
@@ -8512,6 +8554,47 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', () => {
   fetchDatabaseFromCloud();
 });
+// --- BẮT ĐẦU: Hàm xử lý nút Làm mới thủ công trên Mobile ---
+async function forceMobileRefresh() {
+  const btn = document.getElementById('btnMobileRefresh');
+  if (btn) {
+    btn.innerHTML = "⏳ Đang tải...";
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+  }
+
+  try {
+    // Ép tải lại dữ liệu từ Đám mây (truyền tham số true để bỏ qua độ trễ 5 giây)
+    await fetchDatabaseFromCloud(true);
+    
+    if (btn) {
+      btn.innerHTML = "✅ Đã chốt số liệu";
+      btn.style.backgroundColor = "var(--success)";
+      btn.style.borderColor = "var(--success)";
+      
+      // Trả lại trạng thái cũ sau 2 giây
+      setTimeout(() => {
+        btn.innerHTML = "🔄 Làm mới";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.backgroundColor = "rgba(255,255,255,0.25)";
+        btn.style.borderColor = "rgba(255,255,255,0.5)";
+      }, 2000);
+    }
+  } catch (error) {
+    if (btn) {
+      btn.innerHTML = "❌ Lỗi mạng";
+      btn.style.backgroundColor = "var(--danger)";
+      setTimeout(() => {
+        btn.innerHTML = "🔄 Thử lại";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.backgroundColor = "rgba(255,255,255,0.25)";
+      }, 2000);
+    }
+  }
+}
+// --- KẾT THÚC ---
 </script>
 <datalist id="studentDatalist"></datalist>
 </body>
