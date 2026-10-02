@@ -1872,6 +1872,7 @@
 <div id="imgModal" onclick="closeImgModal()">
   <img id="imgModalSrc" src="" alt="Ảnh minh chứng phóng to">
 </div>
+<datalist id="studentDatalist"></datalist>
 <!-- BẢNG CÀI ĐẶT MÁY CHỦ MQTT HIVEMQ -->
 <div id="mqttModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:3000; align-items:center; justify-content:center;">
   <div style="background:white; padding:1.5rem; border-radius:12px; width:450px; max-width:90%;">
@@ -4312,7 +4313,7 @@ function setupSdbForm() {
   document.getElementById('sdbCountFairScores').value = data.fairScores || 0;
   document.getElementById('sdbCountMedScores').value = data.medScores || 0;
   document.getElementById('sdbCountPoorScores').value = data.poorScores || 0;
-
+    updateStudentDatalist(targetClass);
   renderSdbAbsenceList();
   recalcSdbFull();
 }
